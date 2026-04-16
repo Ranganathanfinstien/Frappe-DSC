@@ -1,0 +1,219 @@
+{
+ "actions": [],
+ "autoname": "field:template_name",
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "template_section",
+  "template_name",
+  "target_doctype",
+  "print_format",
+  "column_break_template",
+  "version",
+  "is_active",
+  "fields_section",
+  "fields",
+  "stamp_section",
+  "stamp_show_signer_name",
+  "stamp_show_designation",
+  "stamp_show_digitally_signed_by",
+  "stamp_show_timestamp",
+  "stamp_timestamp_format",
+  "column_break_stamp",
+  "stamp_show_reason",
+  "stamp_show_location",
+  "stamp_show_dn_cn",
+  "stamp_include_signature_image",
+  "stamp_include_seal_image",
+  "stamp_style_section",
+  "stamp_font_family",
+  "stamp_font_size",
+  "column_break_stamp_style",
+  "stamp_border"
+ ],
+ "fields": [
+  {
+   "fieldname": "template_section",
+   "fieldtype": "Section Break",
+   "label": "Template"
+  },
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Template Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Target DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "print_format",
+   "fieldtype": "Link",
+   "label": "Print Format",
+   "options": "Print Format",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_template",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "version",
+   "fieldtype": "Int",
+   "label": "Version"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active"
+  },
+  {
+   "fieldname": "fields_section",
+   "fieldtype": "Section Break",
+   "label": "Signature Placement"
+  },
+  {
+   "fieldname": "fields",
+   "fieldtype": "Table",
+   "label": "Signature Fields",
+   "options": "DSC Signature Field",
+   "description": "Define where signatures appear on the PDF. MVP uses one field named 'primary'."
+  },
+  {
+   "fieldname": "stamp_section",
+   "fieldtype": "Section Break",
+   "label": "Stamp Content"
+  },
+  {
+   "default": "1",
+   "fieldname": "stamp_show_signer_name",
+   "fieldtype": "Check",
+   "label": "Show Signer Name"
+  },
+  {
+   "default": "1",
+   "fieldname": "stamp_show_designation",
+   "fieldtype": "Check",
+   "label": "Show Designation"
+  },
+  {
+   "default": "1",
+   "fieldname": "stamp_show_digitally_signed_by",
+   "fieldtype": "Check",
+   "label": "Show 'Digitally signed by' Prefix"
+  },
+  {
+   "default": "1",
+   "fieldname": "stamp_show_timestamp",
+   "fieldtype": "Check",
+   "label": "Show Timestamp"
+  },
+  {
+   "default": "%d-%m-%Y %H:%M:%S %Z",
+   "fieldname": "stamp_timestamp_format",
+   "fieldtype": "Data",
+   "label": "Timestamp Format",
+   "depends_on": "eval:doc.stamp_show_timestamp"
+  },
+  {
+   "fieldname": "column_break_stamp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "stamp_show_reason",
+   "fieldtype": "Check",
+   "label": "Show Reason"
+  },
+  {
+   "default": "1",
+   "fieldname": "stamp_show_location",
+   "fieldtype": "Check",
+   "label": "Show Location"
+  },
+  {
+   "default": "0",
+   "fieldname": "stamp_show_dn_cn",
+   "fieldtype": "Check",
+   "label": "Show Certificate DN/CN"
+  },
+  {
+   "default": "0",
+   "fieldname": "stamp_include_signature_image",
+   "fieldtype": "Check",
+   "label": "Include Signature Image"
+  },
+  {
+   "default": "0",
+   "fieldname": "stamp_include_seal_image",
+   "fieldtype": "Check",
+   "label": "Include Seal Image"
+  },
+  {
+   "fieldname": "stamp_style_section",
+   "fieldtype": "Section Break",
+   "label": "Stamp Style",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "stamp_font_family",
+   "fieldtype": "Data",
+   "label": "Font Family"
+  },
+  {
+   "default": "8",
+   "fieldname": "stamp_font_size",
+   "fieldtype": "Float",
+   "label": "Font Size (pt)"
+  },
+  {
+   "fieldname": "column_break_stamp_style",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "stamp_border",
+   "fieldtype": "Check",
+   "label": "Show Border"
+  }
+ ],
+ "links": [],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Signature Template",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "role": "DSC Administrator",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

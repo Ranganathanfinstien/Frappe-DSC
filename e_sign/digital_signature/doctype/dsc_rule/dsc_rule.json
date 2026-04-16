@@ -1,0 +1,193 @@
+{
+ "actions": [],
+ "autoname": "field:rule_name",
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_section",
+  "rule_name",
+  "priority",
+  "is_enabled",
+  "column_break_rule",
+  "target_doctype",
+  "trigger_event",
+  "trigger_workflow_state",
+  "conditions_section",
+  "conditions",
+  "signing_section",
+  "profile",
+  "print_format",
+  "signature_template",
+  "column_break_signing",
+  "is_mandatory",
+  "block_print_until_signed",
+  "block_email_until_signed",
+  "auto_attach_to_source",
+  "scope_section",
+  "company"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_section",
+   "fieldtype": "Section Break",
+   "label": "Rule"
+  },
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "10",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Priority",
+   "description": "Lower number fires first"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "column_break_rule",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Target DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "default": "on_submit",
+   "fieldname": "trigger_event",
+   "fieldtype": "Select",
+   "label": "Trigger Event",
+   "options": "on_submit\non_update\non_workflow_action\non_custom_button",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.trigger_event=='on_workflow_action'",
+   "fieldname": "trigger_workflow_state",
+   "fieldtype": "Data",
+   "label": "Workflow State"
+  },
+  {
+   "fieldname": "conditions_section",
+   "fieldtype": "Section Break",
+   "label": "Conditions"
+  },
+  {
+   "fieldname": "conditions",
+   "fieldtype": "Table",
+   "label": "Conditions",
+   "options": "DSC Rule Condition",
+   "description": "All conditions must match (AND logic). Leave empty to match all documents."
+  },
+  {
+   "fieldname": "signing_section",
+   "fieldtype": "Section Break",
+   "label": "Signing Configuration"
+  },
+  {
+   "fieldname": "profile",
+   "fieldtype": "Link",
+   "label": "DSC Profile",
+   "options": "DSC Profile",
+   "reqd": 1
+  },
+  {
+   "fieldname": "print_format",
+   "fieldtype": "Link",
+   "label": "Print Format",
+   "options": "Print Format",
+   "reqd": 1
+  },
+  {
+   "fieldname": "signature_template",
+   "fieldtype": "Link",
+   "label": "Signature Template",
+   "options": "DSC Signature Template",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_signing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_mandatory",
+   "fieldtype": "Check",
+   "label": "Signing is Mandatory"
+  },
+  {
+   "default": "0",
+   "fieldname": "block_print_until_signed",
+   "fieldtype": "Check",
+   "label": "Block Print Until Signed"
+  },
+  {
+   "default": "0",
+   "fieldname": "block_email_until_signed",
+   "fieldtype": "Check",
+   "label": "Block Email Until Signed"
+  },
+  {
+   "default": "1",
+   "fieldname": "auto_attach_to_source",
+   "fieldtype": "Check",
+   "label": "Auto-attach Signed PDF to Source"
+  },
+  {
+   "fieldname": "scope_section",
+   "fieldtype": "Section Break",
+   "label": "Scope",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "description": "Leave empty to apply to all companies"
+  }
+ ],
+ "links": [],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Rule",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "report": 1,
+   "role": "DSC Administrator",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "priority",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,236 @@
+{
+ "actions": [],
+ "autoname": "field:profile_name",
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "profile_section",
+  "profile_name",
+  "label",
+  "column_break_profile",
+  "company",
+  "is_active",
+  "users_section",
+  "allowed_users",
+  "certificate_section",
+  "certificate_fingerprint",
+  "certificate_common_name",
+  "column_break_cert_1",
+  "certificate_issuer",
+  "certificate_serial",
+  "certificate_validity_section",
+  "certificate_not_before",
+  "column_break_cert_validity",
+  "certificate_not_after",
+  "registered_on",
+  "certificate_pem_section",
+  "certificate_pem_public",
+  "previous_certificates_section",
+  "previous_certificates",
+  "stamp_section",
+  "designation_for_stamp",
+  "column_break_stamp",
+  "signature_image",
+  "seal_image"
+ ],
+ "fields": [
+  {
+   "fieldname": "profile_section",
+   "fieldtype": "Section Break",
+   "label": "Profile"
+  },
+  {
+   "fieldname": "profile_name",
+   "fieldtype": "Data",
+   "label": "Profile Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "label": "Display Label",
+   "description": "Display name for the visual stamp, e.g. 'Chief Financial Officer'"
+  },
+  {
+   "fieldname": "column_break_profile",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "users_section",
+   "fieldtype": "Section Break",
+   "label": "Allowed Users"
+  },
+  {
+   "fieldname": "allowed_users",
+   "fieldtype": "Table",
+   "label": "Allowed Users",
+   "options": "DSC Profile User",
+   "description": "Users permitted to sign using this profile"
+  },
+  {
+   "fieldname": "certificate_section",
+   "fieldtype": "Section Break",
+   "label": "Certificate Details"
+  },
+  {
+   "fieldname": "certificate_fingerprint",
+   "fieldtype": "Data",
+   "label": "Certificate Fingerprint (SHA-256)",
+   "description": "SHA-256 hash of the certificate DER encoding. Populated on certificate registration."
+  },
+  {
+   "fieldname": "certificate_common_name",
+   "fieldtype": "Data",
+   "label": "Common Name (CN)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cert_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "certificate_issuer",
+   "fieldtype": "Data",
+   "label": "Issuer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "certificate_serial",
+   "fieldtype": "Data",
+   "label": "Serial Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "certificate_validity_section",
+   "fieldtype": "Section Break",
+   "label": "Certificate Validity"
+  },
+  {
+   "fieldname": "certificate_not_before",
+   "fieldtype": "Datetime",
+   "label": "Valid From",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cert_validity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "certificate_not_after",
+   "fieldtype": "Datetime",
+   "label": "Valid Until",
+   "read_only": 1
+  },
+  {
+   "fieldname": "registered_on",
+   "fieldtype": "Datetime",
+   "label": "Registered On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "certificate_pem_section",
+   "fieldtype": "Section Break",
+   "label": "Public Certificate (PEM)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "certificate_pem_public",
+   "fieldtype": "Long Text",
+   "label": "Certificate PEM",
+   "read_only": 1,
+   "description": "Public certificate in PEM format. Used for server-side verification cache."
+  },
+  {
+   "fieldname": "previous_certificates_section",
+   "fieldtype": "Section Break",
+   "label": "Previous Certificates",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "previous_certificates",
+   "fieldtype": "Table",
+   "label": "Previous Certificates",
+   "options": "DSC Previous Certificate",
+   "description": "History of replaced certificates. Retained for verifying older signatures."
+  },
+  {
+   "fieldname": "stamp_section",
+   "fieldtype": "Section Break",
+   "label": "Visual Stamp Configuration"
+  },
+  {
+   "fieldname": "designation_for_stamp",
+   "fieldtype": "Data",
+   "label": "Designation for Stamp",
+   "description": "Overrides the Display Label on the visual stamp if set"
+  },
+  {
+   "fieldname": "column_break_stamp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signature_image",
+   "fieldtype": "Attach Image",
+   "label": "Handwritten Signature Image",
+   "description": "Optional handwritten signature image to include in the visual stamp"
+  },
+  {
+   "fieldname": "seal_image",
+   "fieldtype": "Attach Image",
+   "label": "Company Seal Image",
+   "description": "Optional company seal image to include in the visual stamp"
+  }
+ ],
+ "links": [],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Profile",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "DSC Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "DSC Signer"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "label",
+ "track_changes": 1
+}

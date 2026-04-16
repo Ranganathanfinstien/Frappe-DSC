@@ -1,0 +1,158 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "event_section",
+  "request",
+  "event_type",
+  "column_break_event",
+  "occurred_at",
+  "actor_user",
+  "client_section",
+  "client_ip",
+  "column_break_client",
+  "user_agent",
+  "details_section",
+  "details_json",
+  "hash_section",
+  "event_hash",
+  "column_break_hash",
+  "previous_event_hash"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "DSC-AE-.#####",
+   "default": "DSC-AE-.#####"
+  },
+  {
+   "fieldname": "event_section",
+   "fieldtype": "Section Break",
+   "label": "Event"
+  },
+  {
+   "fieldname": "request",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Signing Request",
+   "options": "DSC Signing Request",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Event Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_event",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "occurred_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Occurred At (UTC)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "actor_user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Actor",
+   "options": "User"
+  },
+  {
+   "fieldname": "client_section",
+   "fieldtype": "Section Break",
+   "label": "Client",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "client_ip",
+   "fieldtype": "Data",
+   "label": "Client IP"
+  },
+  {
+   "fieldname": "column_break_client",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "user_agent",
+   "fieldtype": "Small Text",
+   "label": "User Agent"
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "details_json",
+   "fieldtype": "Long Text",
+   "label": "Details (JSON)"
+  },
+  {
+   "fieldname": "hash_section",
+   "fieldtype": "Section Break",
+   "label": "Integrity",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "event_hash",
+   "fieldtype": "Data",
+   "label": "Event Hash",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_hash",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "previous_event_hash",
+   "fieldtype": "Data",
+   "label": "Previous Event Hash",
+   "read_only": 1,
+   "description": "Reserved for v2 hash-chain tamper detection. Empty in MVP."
+  }
+ ],
+ "in_create": 1,
+ "links": [],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Audit Event",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "DSC Administrator"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "DSC Auditor"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager"
+  }
+ ],
+ "sort_field": "occurred_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
