@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "certificate_fingerprint",
+  "certificate_common_name",
+  "certificate_not_after",
+  "replaced_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "certificate_fingerprint",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Certificate Fingerprint (SHA-256)"
+  },
+  {
+   "fieldname": "certificate_common_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Common Name"
+  },
+  {
+   "fieldname": "certificate_not_after",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Expired On"
+  },
+  {
+   "fieldname": "replaced_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Replaced On"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Previous Certificate",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

@@ -1,0 +1,164 @@
+{
+ "actions": [],
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "general_section",
+  "default_reason",
+  "default_location",
+  "column_break_general",
+  "signing_timeout_seconds",
+  "retention_years_for_requests",
+  "agent_section",
+  "agent_listen_port",
+  "column_break_agent",
+  "enable_anonymous_telemetry",
+  "signing_engine_section",
+  "pdf_preparation_engine",
+  "column_break_engine",
+  "default_hash_algorithm",
+  "trust_store_section",
+  "trust_store_bundle",
+  "expiry_section",
+  "enable_expiry_warnings",
+  "expiry_warning_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "general_section",
+   "fieldtype": "Section Break",
+   "label": "General"
+  },
+  {
+   "default": "Approved",
+   "fieldname": "default_reason",
+   "fieldtype": "Small Text",
+   "label": "Default Signing Reason"
+  },
+  {
+   "fieldname": "default_location",
+   "fieldtype": "Data",
+   "label": "Default Location"
+  },
+  {
+   "fieldname": "column_break_general",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "180",
+   "fieldname": "signing_timeout_seconds",
+   "fieldtype": "Int",
+   "label": "Signing Timeout (seconds)",
+   "description": "Maximum time allowed for a signing operation before it is marked stale"
+  },
+  {
+   "default": "7",
+   "fieldname": "retention_years_for_requests",
+   "fieldtype": "Int",
+   "label": "Retention Years for Requests",
+   "description": "Signing requests older than this will be purged. Audit events are kept forever."
+  },
+  {
+   "fieldname": "agent_section",
+   "fieldtype": "Section Break",
+   "label": "Desktop Agent"
+  },
+  {
+   "default": "4645",
+   "fieldname": "agent_listen_port",
+   "fieldtype": "Int",
+   "label": "Agent Listen Port",
+   "description": "Port on which dsc-bridge listens on the signer's machine"
+  },
+  {
+   "fieldname": "column_break_agent",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_anonymous_telemetry",
+   "fieldtype": "Check",
+   "label": "Enable Anonymous Telemetry",
+   "description": "If enabled, only error counts are reported. Never document content or hashes."
+  },
+  {
+   "fieldname": "signing_engine_section",
+   "fieldtype": "Section Break",
+   "label": "Signing Engine"
+  },
+  {
+   "default": "pyhanko",
+   "fieldname": "pdf_preparation_engine",
+   "fieldtype": "Select",
+   "label": "PDF Preparation Engine",
+   "options": "pyhanko"
+  },
+  {
+   "fieldname": "column_break_engine",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "sha256",
+   "fieldname": "default_hash_algorithm",
+   "fieldtype": "Select",
+   "label": "Default Hash Algorithm",
+   "options": "sha256\nsha384"
+  },
+  {
+   "fieldname": "trust_store_section",
+   "fieldtype": "Section Break",
+   "label": "Trust Store",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "trust_store_bundle",
+   "fieldtype": "Attach",
+   "label": "Custom CA Trust Store Bundle",
+   "description": "Upload a PEM bundle of trusted CA certificates for offline signature verification"
+  },
+  {
+   "fieldname": "expiry_section",
+   "fieldtype": "Section Break",
+   "label": "Certificate Expiry Warnings"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_expiry_warnings",
+   "fieldtype": "Check",
+   "label": "Enable Expiry Warnings"
+  },
+  {
+   "fieldname": "expiry_warning_days",
+   "fieldtype": "Table",
+   "label": "Warning Days",
+   "options": "DSC Expiry Warning Day",
+   "description": "Send certificate expiry notifications this many days before expiry"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "DSC Administrator",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

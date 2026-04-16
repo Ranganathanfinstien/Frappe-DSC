@@ -1,0 +1,75 @@
+{
+ "actions": [],
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "field_name",
+  "page_number",
+  "x",
+  "y",
+  "width",
+  "height",
+  "assigned_profile"
+ ],
+ "fields": [
+  {
+   "fieldname": "field_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Field Name",
+   "reqd": 1,
+   "default": "primary"
+  },
+  {
+   "default": "1",
+   "fieldname": "page_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Page"
+  },
+  {
+   "fieldname": "x",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "X (pts from left)"
+  },
+  {
+   "fieldname": "y",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Y (pts from bottom)"
+  },
+  {
+   "fieldname": "width",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Width (pts)"
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Height (pts)"
+  },
+  {
+   "fieldname": "assigned_profile",
+   "fieldtype": "Link",
+   "label": "Assigned Profile",
+   "options": "DSC Profile"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Signature Field",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

@@ -1,0 +1,304 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "source_section",
+  "naming_series",
+  "source_doctype",
+  "source_name",
+  "column_break_source",
+  "rule",
+  "profile",
+  "signature_template",
+  "signer_section",
+  "expected_signer_user",
+  "column_break_signer",
+  "actual_signer_user",
+  "status_section",
+  "status",
+  "column_break_status",
+  "failure_reason",
+  "hash_section",
+  "hash_algorithm",
+  "hash_to_be_signed",
+  "signature_section",
+  "signature_bytes",
+  "certificate_section",
+  "certificate_fingerprint_presented",
+  "ocsp_response_b64",
+  "output_section",
+  "signed_file",
+  "timestamps_section",
+  "created_on",
+  "signed_on",
+  "column_break_timestamps",
+  "cancelled_on",
+  "sign_duration_seconds",
+  "client_section",
+  "client_ip",
+  "column_break_client",
+  "client_user_agent"
+ ],
+ "fields": [
+  {
+   "fieldname": "source_section",
+   "fieldtype": "Section Break",
+   "label": "Source Document"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "DSC-SR-.#####",
+   "default": "DSC-SR-.#####"
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Source DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "source_name",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Source Document",
+   "options": "source_doctype",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rule",
+   "fieldtype": "Link",
+   "label": "DSC Rule",
+   "options": "DSC Rule"
+  },
+  {
+   "fieldname": "profile",
+   "fieldtype": "Link",
+   "label": "DSC Profile",
+   "options": "DSC Profile",
+   "reqd": 1
+  },
+  {
+   "fieldname": "signature_template",
+   "fieldtype": "Link",
+   "label": "Signature Template",
+   "options": "DSC Signature Template"
+  },
+  {
+   "fieldname": "signer_section",
+   "fieldtype": "Section Break",
+   "label": "Signer"
+  },
+  {
+   "fieldname": "expected_signer_user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Expected Signer",
+   "options": "User"
+  },
+  {
+   "fieldname": "column_break_signer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "actual_signer_user",
+   "fieldtype": "Link",
+   "label": "Actual Signer",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nIn Progress\nSigned\nFailed\nCancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "failure_reason",
+   "fieldtype": "Small Text",
+   "label": "Failure Reason",
+   "read_only": 1,
+   "depends_on": "eval:doc.status=='Failed'"
+  },
+  {
+   "fieldname": "hash_section",
+   "fieldtype": "Section Break",
+   "label": "Hash",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "hash_algorithm",
+   "fieldtype": "Data",
+   "label": "Hash Algorithm",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hash_to_be_signed",
+   "fieldtype": "Long Text",
+   "label": "Hash to be Signed (hex)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_section",
+   "fieldtype": "Section Break",
+   "label": "Signature",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "signature_bytes",
+   "fieldtype": "Long Text",
+   "label": "Signature (base64)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "certificate_section",
+   "fieldtype": "Section Break",
+   "label": "Certificate",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "certificate_fingerprint_presented",
+   "fieldtype": "Data",
+   "label": "Certificate Fingerprint Presented",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ocsp_response_b64",
+   "fieldtype": "Long Text",
+   "label": "OCSP Response (base64)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "output_section",
+   "fieldtype": "Section Break",
+   "label": "Signed Output"
+  },
+  {
+   "fieldname": "signed_file",
+   "fieldtype": "Link",
+   "label": "Signed PDF",
+   "options": "File",
+   "read_only": 1
+  },
+  {
+   "fieldname": "timestamps_section",
+   "fieldtype": "Section Break",
+   "label": "Timestamps"
+  },
+  {
+   "fieldname": "created_on",
+   "fieldtype": "Datetime",
+   "label": "Request Created",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signed_on",
+   "fieldtype": "Datetime",
+   "label": "Signed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_timestamps",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cancelled_on",
+   "fieldtype": "Datetime",
+   "label": "Cancelled On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sign_duration_seconds",
+   "fieldtype": "Int",
+   "label": "Sign Duration (seconds)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "client_section",
+   "fieldtype": "Section Break",
+   "label": "Client Info",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "client_ip",
+   "fieldtype": "Data",
+   "label": "Client IP",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_client",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "client_user_agent",
+   "fieldtype": "Small Text",
+   "label": "Client User Agent",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Signing Request",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "DSC Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "DSC Signer",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "DSC Auditor"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "source_name",
+ "track_changes": 1
+}
