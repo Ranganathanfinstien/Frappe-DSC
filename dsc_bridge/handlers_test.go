@@ -2,11 +2,21 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/miekg/pkcs11"
+	"github.com/zalando/go-keyring"
 )
+
+func init() {
+	// Use the in-memory keyring backend for all tests so we never touch
+	// the developer's actual OS keychain.
+	keyring.MockInit()
+}
 
 func TestHandleStatus(t *testing.T) {
 	ks, _ := NewKeystore("/tmp/dsc-bridge-test-ks.json")
@@ -232,5 +242,36 @@ func TestErrorResponse(t *testing.T) {
 	}
 	if resp.Message == "" {
 		t.Error("message should not be empty")
+	}
+}
+
+func TestMapPKCS11Error(t *testing.T) {
+	cases := []struct {
+		name     string
+		err      error
+		wantCode string
+		wantHTTP int
+	}{
+		{"nil", nil, ErrInternalError, http.StatusInternalServerError},
+		{"non-pkcs11", fmt.Errorf("plain error"), ErrInternalError, http.StatusInternalServerError},
+		{"pin incorrect", pkcs11.Error(pkcs11.CKR_PIN_INCORRECT), ErrPINIncorrect, http.StatusUnauthorized},
+		{"pin locked", pkcs11.Error(pkcs11.CKR_PIN_LOCKED), ErrPINLocked, http.StatusForbidden},
+		{"function cancelled", pkcs11.Error(pkcs11.CKR_FUNCTION_CANCELED), ErrPINCancelled, http.StatusBadRequest},
+		{"token removed", pkcs11.Error(pkcs11.CKR_DEVICE_REMOVED), ErrTokenNotFound, http.StatusNotFound},
+		{"mechanism invalid", pkcs11.Error(pkcs11.CKR_MECHANISM_INVALID), ErrUnsupportedAlgo, http.StatusBadRequest},
+		{"key handle invalid", pkcs11.Error(pkcs11.CKR_KEY_HANDLE_INVALID), ErrCertNotFound, http.StatusNotFound},
+		{"wrapped pin incorrect", fmt.Errorf("login failed: %w", pkcs11.Error(pkcs11.CKR_PIN_INCORRECT)), ErrPINIncorrect, http.StatusUnauthorized},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotCode, gotHTTP := mapPKCS11Error(tc.err)
+			if gotCode != tc.wantCode {
+				t.Errorf("code: want %s, got %s", tc.wantCode, gotCode)
+			}
+			if gotHTTP != tc.wantHTTP {
+				t.Errorf("http: want %d, got %d", tc.wantHTTP, gotHTTP)
+			}
+		})
 	}
 }

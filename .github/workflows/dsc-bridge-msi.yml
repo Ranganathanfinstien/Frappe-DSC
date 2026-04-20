@@ -1,0 +1,125 @@
+name: dsc-bridge MSI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dsc_bridge/**'
+      - '.github/workflows/dsc-bridge-msi.yml'
+  pull_request:
+    paths:
+      - 'dsc_bridge/**'
+      - '.github/workflows/dsc-bridge-msi.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag for the MSI (e.g. 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+defaults:
+  run:
+    working-directory: dsc_bridge
+
+jobs:
+  build-msi:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: dsc_bridge/go.sum
+
+      - name: Install WiX Toolset v3
+        run: |
+          choco install wixtoolset --no-progress -y
+          # WiX 3.x installs to "C:\Program Files (x86)\WiX Toolset v3.11\bin"
+          $wix = (Get-ChildItem 'C:\Program Files (x86)\WiX Toolset*' | Select-Object -First 1).FullName
+          Add-Content $env:GITHUB_PATH "$wix\bin"
+        shell: pwsh
+
+      - name: Install go-msi
+        run: go install github.com/mh-cbon/go-msi@latest
+        shell: pwsh
+
+      - name: Build dsc-bridge.exe
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          go mod tidy
+          # Build the binary at the package root because wix.json files.items
+          # references "dsc-bridge.exe" relative to where go-msi runs.
+          go build -ldflags "-s -w -H windowsgui" -o dsc-bridge.exe .
+        shell: pwsh
+
+      - name: Build MSI
+        env:
+          VERSION: ${{ github.event.inputs.version || '1.0.0' }}
+        run: |
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          go-msi make --msi "build\dsc-bridge-$env:VERSION.msi" --version $env:VERSION
+        shell: pwsh
+
+      # --- Optional: Authenticode signing ---
+      # Requires repository secrets:
+      #   CODE_SIGNING_PFX_BASE64  -- base64 of the .pfx code-signing cert
+      #   CODE_SIGNING_PFX_PASSWORD -- password for the pfx
+      # If either secret is missing, the step is skipped and an unsigned MSI is uploaded.
+      - name: Authenticode-sign MSI
+        if: env.CODE_SIGNING_PFX_BASE64 != ''
+        env:
+          CODE_SIGNING_PFX_BASE64: ${{ secrets.CODE_SIGNING_PFX_BASE64 }}
+          CODE_SIGNING_PFX_PASSWORD: ${{ secrets.CODE_SIGNING_PFX_PASSWORD }}
+          VERSION: ${{ github.event.inputs.version || '1.0.0' }}
+        run: |
+          $bytes = [Convert]::FromBase64String($env:CODE_SIGNING_PFX_BASE64)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, $bytes)
+
+          $signtool = (Get-ChildItem -Path 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter 'signtool.exe' |
+                       Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1).FullName
+
+          & $signtool sign `
+            /f $pfxPath `
+            /p $env:CODE_SIGNING_PFX_PASSWORD `
+            /tr http://timestamp.digicert.com `
+            /td SHA256 `
+            /fd SHA256 `
+            "build\dsc-bridge-$env:VERSION.msi"
+
+          Remove-Item $pfxPath
+        shell: pwsh
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsc-bridge-msi
+          path: dsc_bridge/build/dsc-bridge-*.msi
+          if-no-files-found: error
+          retention-days: 30
+
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: dsc_bridge/go.sum
+
+      - name: Install libsecret (required by go-keyring on Linux)
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev dbus-x11
+
+      - name: Run unit tests
+        run: |
+          go mod tidy
+          # dbus-launch wraps the test process so go-keyring's MockInit isn't strictly
+          # needed, but our tests use MockInit and don't touch the real D-Bus session.
+          go test -v ./...

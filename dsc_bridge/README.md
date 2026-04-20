@@ -22,15 +22,14 @@ go build -o dsc-bridge .
 # Install SoftHSM2
 sudo apt install softhsm2 opensc
 
-# Initialize a test token
-softhsm2-util --init-token --slot 0 --label "TestDSC" --pin 1234 --so-pin 5678
+# Initialise the test token + import a self-signed cert (idempotent)
+./test_setup.sh
 
-# Generate a key pair
-pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so \
-  --login --pin 1234 \
-  --keypairgen --key-type rsa:2048 --id 01 --label "TestKey"
+# Run the integration tests against the SoftHSM2 token
+./build.sh integration
+# (equivalent to: go test -tags softhsm -v ./...)
 
-# Run the agent
+# Run the agent itself
 ./dsc-bridge
 ```
 
@@ -61,3 +60,20 @@ Optional config file at `~/.local/share/dsc-bridge/dsc-bridge.json`:
 - Listens only on 127.0.0.1 (localhost)
 - All requests (except /v1/pair and /v1/status) require `X-DSC-Site-Token` and `Origin` headers
 - Private key never leaves the USB token
+- Site tokens are stored in the **OS keychain** (Windows Credential Manager / macOS Keychain / Linux libsecret), not on disk
+
+## Windows MSI
+
+The CI workflow at `.github/workflows/dsc-bridge-msi.yml` builds a signed
+MSI installer on `windows-latest`:
+
+- Installs WiX Toolset v3 and `go-msi`
+- Builds `dsc-bridge.exe` with `-H windowsgui` (no console window)
+- Generates the MSI from `wix.json` (registers `dsc-bridge` as a Windows Service)
+- Optionally Authenticode-signs if the repo has the secrets:
+  - `CODE_SIGNING_PFX_BASE64` — base64 of the `.pfx` code-signing certificate
+  - `CODE_SIGNING_PFX_PASSWORD` — password for the pfx
+- Uploads the MSI as a workflow artifact
+
+Trigger manually via **Actions → dsc-bridge MSI → Run workflow**, or push
+changes under `dsc_bridge/`.

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"runtime"
@@ -112,17 +111,18 @@ func (h *Handlers) HandlePair(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate pairing code against the Frappe site
-	siteToken, err := validatePairingCode(req.SiteURL, req.PairingCode, h.agentFP)
+	pairing, err := validatePairingCode(req.SiteURL, req.PairingCode, h.agentFP)
 	if err != nil {
 		writeError(w, ErrInvalidPairingCode, http.StatusForbidden)
 		return
 	}
 
-	// Store the paired site
+	// Store the paired site (token goes to OS keychain, metadata to JSON)
 	err = h.ks.AddSite(PairedSite{
-		SiteURL:   req.SiteURL,
-		SiteToken: siteToken,
-		PairedOn:  time.Now().UTC().Format(time.RFC3339),
+		SiteURL:           req.SiteURL,
+		SiteToken:         pairing.SiteToken,
+		PairedOn:          time.Now().UTC().Format(time.RFC3339),
+		AgentRegistration: pairing.AgentRegistration,
 	})
 	if err != nil {
 		writeErrorMsg(w, ErrInternalError, "failed to store pairing", http.StatusInternalServerError)
@@ -135,37 +135,56 @@ func (h *Handlers) HandlePair(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// pairingResult holds what the Frappe server returns from validate_pairing_code.
+type pairingResult struct {
+	SiteToken         string
+	AgentRegistration string
+}
+
 // validatePairingCode calls the Frappe site to validate the one-time pairing code.
-// Returns the long-lived site token on success.
-func validatePairingCode(siteURL, code, agentFP string) (string, error) {
+// Returns the long-lived site token + agent registration ID on success.
+//
+// We marshal the request body via encoding/json (not fmt.Sprintf) so that
+// pairing codes containing JSON-special characters can't break out of the body.
+func validatePairingCode(siteURL, code, agentFP string) (*pairingResult, error) {
 	url := fmt.Sprintf("%s/api/method/e_sign.api.agent.validate_pairing_code", siteURL)
 
-	body := fmt.Sprintf(`{"pairing_code": "%s", "agent_fingerprint": "%s"}`, code, agentFP)
-
-	resp, err := http.Post(url, "application/json", readerFromString(body))
+	reqBody, err := json.Marshal(map[string]string{
+		"pairing_code":      code,
+		"agent_fingerprint": agentFP,
+	})
 	if err != nil {
-		return "", fmt.Errorf("contacting site: %w", err)
+		return nil, fmt.Errorf("marshalling request: %w", err)
+	}
+
+	resp, err := http.Post(url, "application/json", bytesReader(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("contacting site: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("site returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("site returned status %d", resp.StatusCode)
 	}
 
 	var result struct {
 		Message struct {
-			SiteToken string `json:"site_token"`
+			SiteToken         string `json:"site_token"`
+			AgentRegistration string `json:"agent_registration"`
 		} `json:"message"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if result.Message.SiteToken == "" {
-		return "", fmt.Errorf("no site_token in response")
+		return nil, fmt.Errorf("no site_token in response")
 	}
 
-	return result.Message.SiteToken, nil
+	return &pairingResult{
+		SiteToken:         result.Message.SiteToken,
+		AgentRegistration: result.Message.AgentRegistration,
+	}, nil
 }
 
 // --- POST /v1/sign ---
@@ -229,8 +248,8 @@ func (h *Handlers) HandleSign(w http.ResponseWriter, r *http.Request) {
 	// The token vendor's middleware handles PIN capture.
 	sigBytes, certDER, err := h.pkcs11.SignHash(ctx, slot, req.ExpectedFingerprint, hashBytes, "")
 	if err != nil {
-		// Map PKCS#11 errors to our error codes
-		writeErrorMsg(w, ErrInternalError, err.Error(), http.StatusInternalServerError)
+		code, status := mapPKCS11Error(err)
+		writeErrorMsg(w, code, err.Error(), status)
 		return
 	}
 
@@ -273,20 +292,3 @@ func readJSON(r *http.Request, v interface{}) error {
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
-type stringReader struct {
-	s string
-	i int
-}
-
-func readerFromString(s string) *stringReader {
-	return &stringReader{s: s}
-}
-
-func (sr *stringReader) Read(p []byte) (int, error) {
-	if sr.i >= len(sr.s) {
-		return 0, io.EOF
-	}
-	n := copy(p, sr.s[sr.i:])
-	sr.i += n
-	return n, nil
-}

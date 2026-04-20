@@ -56,13 +56,24 @@ case "${1:-local}" in
         ;;
 
     test)
-        echo "Running tests..."
+        echo "Running unit tests..."
         go mod tidy
         go test -v ./...
         ;;
 
+    integration)
+        echo "Running SoftHSM2 integration tests..."
+        if [ ! -f /usr/lib/softhsm/libsofthsm2.so ]; then
+            echo "ERROR: SoftHSM2 not installed. Run: sudo apt install softhsm2 opensc"
+            exit 1
+        fi
+        echo "Tip: run ./test_setup.sh first if you haven't initialised the test token."
+        go mod tidy
+        go test -tags softhsm -v ./...
+        ;;
+
     *)
-        echo "Usage: ./build.sh [local|windows|msi|test]"
+        echo "Usage: ./build.sh [local|windows|msi|test|integration]"
         exit 1
         ;;
 esac

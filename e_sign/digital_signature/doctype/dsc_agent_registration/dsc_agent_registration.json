@@ -17,7 +17,9 @@
   "last_seen_on",
   "column_break_details",
   "os_platform",
-  "agent_version"
+  "agent_version",
+  "security_section",
+  "site_token_hash"
  ],
  "fields": [
   {
@@ -97,6 +99,21 @@
    "fieldtype": "Data",
    "label": "Agent Version",
    "read_only": 1
+  },
+  {
+   "fieldname": "security_section",
+   "fieldtype": "Section Break",
+   "label": "Security",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "site_token_hash",
+   "fieldtype": "Data",
+   "label": "Site Token Hash (SHA-256)",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "description": "SHA-256 of the site token issued to this agent. The plaintext token is returned to the agent only at pairing time."
   }
  ],
  "links": [],
