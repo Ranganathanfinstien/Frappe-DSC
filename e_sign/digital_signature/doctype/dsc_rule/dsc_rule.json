@@ -73,7 +73,7 @@
    "fieldname": "trigger_event",
    "fieldtype": "Select",
    "label": "Trigger Event",
-   "options": "on_submit\non_update\non_workflow_action\non_custom_button",
+   "options": "on_submit\non_update\non_change\non_workflow_action",
    "reqd": 1
   },
   {
