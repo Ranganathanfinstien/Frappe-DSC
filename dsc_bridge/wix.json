@@ -1,0 +1,63 @@
+{
+  "product": "DSC Bridge",
+  "company": "E-Sign",
+  "license": "LICENSE",
+  "upgrade-code": "f8c5a3e1-7b2d-4e9a-b6c8-3d1f5a2e7b9c",
+  "files": {
+    "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "items": [
+      "dsc-bridge.exe"
+    ]
+  },
+  "directories": [],
+  "env": {
+    "guid": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "vars": []
+  },
+  "shortcuts": {
+    "guid": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "items": [
+      {
+        "name": "DSC Bridge",
+        "description": "Digital Signature Bridge Agent",
+        "target": "[INSTALLDIR]dsc-bridge.exe",
+        "wdir": "[INSTALLDIR]",
+        "arguments": ""
+      }
+    ]
+  },
+  "hooks": [
+    {
+      "when": "install",
+      "command": "sc",
+      "arguments": "create dsc-bridge binPath=\"[INSTALLDIR]dsc-bridge.exe\" start=auto DisplayName=\"DSC Bridge Agent\"",
+      "elevated": true
+    },
+    {
+      "when": "install",
+      "command": "sc",
+      "arguments": "start dsc-bridge",
+      "elevated": true
+    },
+    {
+      "when": "uninstall",
+      "command": "sc",
+      "arguments": "stop dsc-bridge",
+      "elevated": true
+    },
+    {
+      "when": "uninstall",
+      "command": "sc",
+      "arguments": "delete dsc-bridge",
+      "elevated": true
+    }
+  ],
+  "choco": {
+    "description": "Desktop agent for DSC digital signing via USB tokens",
+    "title": "DSC Bridge",
+    "authors": "E-Sign Team",
+    "project-url": "https://github.com/Ragav05/dsc-bridge",
+    "tags": "dsc digital-signature pkcs11 usb-token",
+    "icon-url": ""
+  }
+}
