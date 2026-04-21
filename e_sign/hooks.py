@@ -12,7 +12,14 @@ app_license = "GPL-3.0"
 # Global JS/CSS includes
 # ------------------
 app_include_js = "/assets/e_sign/js/e_sign.js"
-# app_include_css = "/assets/e_sign/css/e_sign.css"
+app_include_css = "/assets/e_sign/css/e_sign.css"
+
+# DocType-specific JS — adds a "Generate Pairing Code" button on the
+# DSC Agent Registration form, plus visual placement preview on the template.
+doctype_js = {
+	"DSC Agent Registration": "digital_signature/doctype/dsc_agent_registration/dsc_agent_registration.js",
+	"DSC Signature Template": "digital_signature/doctype/dsc_signature_template/dsc_signature_template.js",
+}
 
 # Document Events — universal listener for the Rules Engine
 # ------------------

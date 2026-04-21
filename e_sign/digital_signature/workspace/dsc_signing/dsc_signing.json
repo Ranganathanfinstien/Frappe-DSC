@@ -1,0 +1,157 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"dsc-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Daily Work</b></span>\",\"col\":12}},{\"id\":\"dsc-shortcut-pending\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Pending Signatures\",\"col\":3}},{\"id\":\"dsc-shortcut-mine\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Signed Documents\",\"col\":3}},{\"id\":\"dsc-shortcut-all\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"All Signing Requests\",\"col\":3}},{\"id\":\"dsc-shortcut-pair\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Paired Agents\",\"col\":3}},{\"id\":\"dsc-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dsc-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Configuration & Audit</b></span>\",\"col\":12}},{\"id\":\"dsc-card-config\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuration\",\"col\":4}},{\"id\":\"dsc-card-ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"dsc-card-audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & History\",\"col\":4}}]",
+ "creation": "2026-04-20 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "edit",
+ "idx": 0,
+ "indicator_color": "blue",
+ "is_hidden": 0,
+ "label": "DSC Signing",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Configuration",
+   "link_count": 4,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "DSC Settings",
+   "link_count": 0,
+   "link_to": "DSC Settings",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "DSC Profile",
+   "link_count": 0,
+   "link_to": "DSC Profile",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "DSC Rule",
+   "link_count": 0,
+   "link_to": "DSC Rule",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "DSC Signature Template",
+   "link_count": 0,
+   "link_to": "DSC Signature Template",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Operations",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "DSC Signing Request",
+   "link_count": 0,
+   "link_to": "DSC Signing Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "DSC Agent Registration",
+   "link_count": 0,
+   "link_to": "DSC Agent Registration",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Audit & History",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "DSC Audit Event",
+   "link_count": 0,
+   "link_to": "DSC Audit Event",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-04-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Signing",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [],
+ "sequence_id": 50.0,
+ "shortcuts": [
+  {
+   "color": "Yellow",
+   "doc_view": "List",
+   "format": "{} Pending",
+   "label": "My Pending Signatures",
+   "link_to": "DSC Signing Request",
+   "stats_filter": "{\"status\":\"Pending\",\"expected_signer_user\":[\"=\",\"user?owner=user\"]}",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "format": "{} Signed",
+   "label": "My Signed Documents",
+   "link_to": "DSC Signing Request",
+   "stats_filter": "{\"status\":\"Signed\",\"actual_signer_user\":[\"=\",\"user?owner=user\"]}",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "All Signing Requests",
+   "link_to": "DSC Signing Request",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "My Paired Agents",
+   "link_to": "DSC Agent Registration",
+   "stats_filter": "{\"user\":[\"=\",\"user?owner=user\"]}",
+   "type": "DocType"
+  }
+ ],
+ "title": "DSC Signing"
+}

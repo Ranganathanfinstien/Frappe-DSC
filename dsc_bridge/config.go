@@ -31,11 +31,11 @@ func DefaultPKCS11Paths() []string {
 	case "windows":
 		sys32 := os.Getenv("SystemRoot") + `\System32`
 		return []string{
-			filepath.Join(sys32, "eps2003csp11.dll"),        // eMudhra ePass2003
-			filepath.Join(sys32, "SignatureP11.dll"),         // HYP2003
-			filepath.Join(sys32, "WDPKCS.dll"),              // WatchData
+			filepath.Join(sys32, "eps2003csp11.dll"),           // eMudhra ePass2003
+			filepath.Join(sys32, "SignatureP11.dll"),           // WatchData ProxKey, HYP2003
+			filepath.Join(sys32, "WDPKCS.dll"),                 // WatchData (legacy bundled lib)
 			filepath.Join(sys32, "mToken CryptoID PKCS11.dll"), // mToken K9
-			filepath.Join(sys32, "eTPKCS11.dll"),             // SafeNet
+			filepath.Join(sys32, "eTPKCS11.dll"),               // SafeNet
 		}
 	case "linux":
 		return []string{
