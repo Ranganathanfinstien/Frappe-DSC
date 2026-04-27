@@ -125,7 +125,8 @@ func (h *Handlers) HandlePair(w http.ResponseWriter, r *http.Request) {
 		AgentRegistration: pairing.AgentRegistration,
 	})
 	if err != nil {
-		writeErrorMsg(w, ErrInternalError, "failed to store pairing", http.StatusInternalServerError)
+		log.Printf("pairing: AddSite failed for %s: %v", req.SiteURL, err)
+		writeErrorMsg(w, ErrInternalError, "failed to store pairing: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 

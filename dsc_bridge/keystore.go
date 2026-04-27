@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 
@@ -63,14 +64,19 @@ func NewKeystore(filePath string) (*Keystore, error) {
 }
 
 // AddSite stores a new paired site. The plaintext SiteToken is written to the
-// OS keychain; only metadata is written to the JSON index.
+// OS keychain; if the keychain is unavailable (common on Linux dev machines
+// without a running/unlocked libsecret daemon), it falls back to a mode-0600
+// file next to the metadata.
 func (ks *Keystore) AddSite(site PairedSite) error {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
 	if site.SiteToken != "" {
 		if err := keyring.Set(keyringService, site.SiteURL, site.SiteToken); err != nil {
-			return fmt.Errorf("storing token in keychain: %w", err)
+			log.Printf("keystore: OS keychain unavailable, using file fallback: %v", err)
+			if ferr := ks.setTokenFile(site.SiteURL, site.SiteToken); ferr != nil {
+				return fmt.Errorf("storing token (file fallback): %w", ferr)
+			}
 		}
 	}
 
@@ -92,6 +98,8 @@ func (ks *Keystore) GetSite(siteURL string) (PairedSite, bool) {
 }
 
 // Token fetches the site token from the OS keychain for the given site URL.
+// Falls back to the mode-0600 file if the keychain is unavailable or the
+// entry was originally stored via the fallback path.
 func (ks *Keystore) Token(siteURL string) (string, error) {
 	ks.mu.RLock()
 	_, ok := ks.sites[siteURL]
@@ -101,13 +109,18 @@ func (ks *Keystore) Token(siteURL string) (string, error) {
 	}
 
 	tok, err := keyring.Get(keyringService, siteURL)
-	if err != nil {
-		if errors.Is(err, keyring.ErrNotFound) {
-			return "", fmt.Errorf("keychain entry missing for %s — agent must re-pair", siteURL)
-		}
-		return "", err
+	if err == nil {
+		return tok, nil
 	}
-	return tok, nil
+
+	tok, ferr := ks.getTokenFile(siteURL)
+	if ferr == nil {
+		return tok, nil
+	}
+	if errors.Is(err, keyring.ErrNotFound) {
+		return "", fmt.Errorf("no token for %s — agent must re-pair", siteURL)
+	}
+	return "", err
 }
 
 // ValidateToken checks if the given token matches the stored token for the site,
@@ -141,8 +154,9 @@ func (ks *Keystore) RemoveSite(siteURL string) error {
 
 	// Best-effort delete from keychain — don't fail if the entry is already gone
 	if err := keyring.Delete(keyringService, siteURL); err != nil && !errors.Is(err, keyring.ErrNotFound) {
-		return fmt.Errorf("removing keychain entry: %w", err)
+		log.Printf("keystore: keychain delete failed for %s: %v", siteURL, err)
 	}
+	_ = ks.deleteTokenFile(siteURL)
 
 	return ks.save()
 }
@@ -153,4 +167,54 @@ func (ks *Keystore) save() error {
 		return err
 	}
 	return os.WriteFile(ks.filePath, data, 0600)
+}
+
+// --- File-backed token fallback ---
+
+func (ks *Keystore) tokenFilePath() string {
+	return ks.filePath + ".tokens"
+}
+
+func (ks *Keystore) loadTokenFile() map[string]string {
+	tokens := map[string]string{}
+	data, err := os.ReadFile(ks.tokenFilePath())
+	if err != nil {
+		return tokens
+	}
+	_ = json.Unmarshal(data, &tokens)
+	return tokens
+}
+
+func (ks *Keystore) setTokenFile(siteURL, token string) error {
+	tokens := ks.loadTokenFile()
+	tokens[siteURL] = token
+	data, err := json.MarshalIndent(tokens, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(ks.tokenFilePath(), data, 0600)
+}
+
+func (ks *Keystore) getTokenFile(siteURL string) (string, error) {
+	tokens := ks.loadTokenFile()
+	if tok, ok := tokens[siteURL]; ok {
+		return tok, nil
+	}
+	return "", fmt.Errorf("no fallback token for %s", siteURL)
+}
+
+func (ks *Keystore) deleteTokenFile(siteURL string) error {
+	tokens := ks.loadTokenFile()
+	if _, ok := tokens[siteURL]; !ok {
+		return nil
+	}
+	delete(tokens, siteURL)
+	if len(tokens) == 0 {
+		return os.Remove(ks.tokenFilePath())
+	}
+	data, err := json.MarshalIndent(tokens, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(ks.tokenFilePath(), data, 0600)
 }
