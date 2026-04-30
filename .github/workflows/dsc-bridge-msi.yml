@@ -59,7 +59,14 @@ jobs:
       - name: Build MSI
         env:
           VERSION: ${{ github.event.inputs.version || '1.0.0' }}
+          # Redirect temp to D: drive — go-msi calls filepath.Rel() between its
+          # temp dir and the workspace, which fails across drive letters
+          # (workspace is D:, default TEMP is C: on GitHub Windows runners).
+          TMP: D:\msi-tmp
+          TEMP: D:\msi-tmp
+          TMPDIR: D:\msi-tmp
         run: |
+          New-Item -ItemType Directory -Force -Path D:\msi-tmp | Out-Null
           New-Item -ItemType Directory -Force -Path build | Out-Null
           go-msi make --msi "build\dsc-bridge-$env:VERSION.msi" --version $env:VERSION
         shell: pwsh
