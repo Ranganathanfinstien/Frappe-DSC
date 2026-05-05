@@ -382,6 +382,31 @@ def cancel(signing_request, reason=""):
 	return {"status": "Cancelled"}
 
 
+@frappe.whitelist()
+def abort_in_progress(signing_request, reason=""):
+	"""Reset an In Progress request back to Pending after a client-side failure.
+
+	Initiate flips the request to In Progress before handing off to the browser
+	+ agent. If the agent call or finalize fails (network, PIN cancelled, agent
+	crashed), the request is stuck and the user can't retry. Call this from the
+	JS catch handler to free it.
+	"""
+	from e_sign.digital_signature.audit import log_event
+
+	doc = frappe.get_doc("DSC Signing Request", signing_request)
+
+	if doc.status != "In Progress":
+		return {"status": doc.status}
+
+	doc.status = "Pending"
+	doc.failure_reason = (reason or "Client-side abort")[:140]
+	doc.save(ignore_permissions=True)
+
+	log_event(signing_request, "Request Aborted", {"reason": reason})
+
+	return {"status": "Pending"}
+
+
 def add_timeline_entry(doctype, docname, signing_request_name):
 	"""Add a timeline comment to the source document."""
 	req = frappe.get_doc("DSC Signing Request", signing_request_name)

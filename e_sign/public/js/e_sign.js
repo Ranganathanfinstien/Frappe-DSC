@@ -17,6 +17,7 @@
 	const FINALIZE_API = "e_sign.api.signing.finalize";
 	const RETRY_API = "e_sign.api.signing.retry";
 	const CANCEL_API = "e_sign.api.signing.cancel";
+	const ABORT_API = "e_sign.api.signing.abort_in_progress";
 
 	const AGENT_HOST = "127.0.0.1";
 	const DEFAULT_AGENT_PORT = 4645;
@@ -95,15 +96,28 @@
 	function startSigningFlow(frm, info) {
 		const port = info.agent_port || DEFAULT_AGENT_PORT;
 		const dialog = buildProgressDialog(frm);
+		const ctx = { signing_request: null };
 
 		dialog.show();
-		runSigningPipeline(frm, info, port, dialog).catch((err) => {
+		runSigningPipeline(frm, info, port, dialog, ctx).catch((err) => {
 			dialog.set_state("error", formatError(err));
 			console.error("[e_sign] signing failed:", err);
+			// Free up the In Progress request so the user can retry without
+			// needing the DB reset.
+			if (ctx.signing_request) {
+				frappe.call({
+					method: ABORT_API,
+					args: {
+						signing_request: ctx.signing_request,
+						reason: (err && err.message) ? err.message : "Client error",
+					},
+					callback: () => frm.reload_doc(),
+				});
+			}
 		});
 	}
 
-	async function runSigningPipeline(frm, info, port, dialog) {
+	async function runSigningPipeline(frm, info, port, dialog, ctx) {
 		// 1) Make sure the local agent is alive and reachable
 		dialog.set_state("checking_agent", __("Connecting to local DSC agent…"));
 		const agentStatus = await pingAgent(port);
@@ -125,6 +139,9 @@
 			doctype: frm.doctype,
 			docname: frm.doc.name,
 		});
+		// Capture the request name for the failure handler so it can auto-abort
+		// if anything below this point throws.
+		if (ctx) ctx.signing_request = initiated.signing_request;
 
 		// 3) Prompt the user for their token PIN. The browser captures it and
 		// sends to the agent — we cannot rely on the PKCS#11 module to pop a

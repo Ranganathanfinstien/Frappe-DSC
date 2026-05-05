@@ -14,6 +14,7 @@ Uses pyHanko's "interrupted signing" workflow:
 
 import asyncio
 import hashlib
+import json
 import uuid
 from io import BytesIO
 
@@ -31,9 +32,35 @@ from pyhanko.sign.signers.pdf_signer import (
 from pyhanko_certvalidator.registry import SimpleCertificateStore
 
 
-# In-memory store for prepared signing sessions
-# Maps session_id → {prepared_digest, output, tbs_document, ...}
-_signing_sessions = {}
+# Sessions are stored in Frappe's Redis cache so they survive across worker
+# processes, bench restarts, and live-reloads — an in-memory dict here would be
+# lost any time the worker recycled, breaking finalize with "session expired".
+_SESSION_KEY_PREFIX = "e_sign:session:"
+_SESSION_TTL_SECONDS = 600  # 10 minutes — enough for the user to enter a PIN
+
+
+def _session_key(session_id):
+	return _SESSION_KEY_PREFIX + session_id
+
+
+def _store_session(session_id, data):
+	frappe.cache().set_value(
+		_session_key(session_id),
+		json.dumps(data, default=str),
+		expires_in_sec=_SESSION_TTL_SECONDS,
+	)
+
+
+def _load_session(session_id, pop=False):
+	key = _session_key(session_id)
+	raw = frappe.cache().get_value(key)
+	if not raw:
+		return None
+	if pop:
+		frappe.cache().delete_value(key)
+	if isinstance(raw, bytes):
+		raw = raw.decode("utf-8")
+	return json.loads(raw)
 
 
 def prepare_pdf_for_signing(
@@ -139,9 +166,10 @@ def prepare_pdf_for_signing(
 	else:
 		doc_hash = hashlib.sha256(pdf_content).hexdigest()
 
-	# Store session data for the finalize step
-	_signing_sessions[session_id] = {
-		"pdf_content": pdf_content,
+	# Store session data for the finalize step. The PDF bytes are NOT stored —
+	# finalize re-renders from the print format anyway, and keeping the payload
+	# small + JSON-friendly lets us use Redis for cross-worker durability.
+	_store_session(session_id, {
 		"hash_algorithm": hash_algorithm,
 		"hash_hex": doc_hash,
 		"field_name": field_name,
@@ -156,11 +184,11 @@ def prepare_pdf_for_signing(
 		"doctype": doctype,
 		"docname": docname,
 		"print_format": print_format,
-		"created_at": now_datetime(),
+		"created_at": str(now_datetime()),
 		"stamp_text": stamp_text,
-		"box": box,
+		"box": list(box) if box else None,
 		"page_number": page_number,
-	}
+	})
 
 	return {
 		"session_id": session_id,
@@ -190,10 +218,13 @@ def finalize_signed_pdf(
 	"""
 	import base64
 
-	if session_id not in _signing_sessions:
+	session = _load_session(session_id, pop=True)
+	if not session:
 		frappe.throw("Signing session expired or not found. Please try again.")
 
-	session = _signing_sessions.pop(session_id)
+	# box was stored as a list (JSON-friendly) — pyHanko expects a tuple
+	if session.get("box"):
+		session["box"] = tuple(session["box"])
 
 	# Decode the inputs
 	signature_bytes = base64.b64decode(signature_bytes_b64)
@@ -444,21 +475,9 @@ def get_session_info(session_id):
 
 	Returns None if session doesn't exist or expired.
 	"""
-	return _signing_sessions.get(session_id)
+	return _load_session(session_id)
 
 
 def cleanup_expired_sessions(max_age_seconds=300):
-	"""Remove signing sessions older than max_age_seconds."""
-	from frappe.utils import time_diff_in_seconds
-
-	now = now_datetime()
-	expired = []
-	for sid, session in _signing_sessions.items():
-		age = time_diff_in_seconds(now, session["created_at"])
-		if age > max_age_seconds:
-			expired.append(sid)
-
-	for sid in expired:
-		del _signing_sessions[sid]
-
-	return len(expired)
+	"""No-op kept for backwards compatibility — Redis TTL handles expiry now."""
+	return 0
