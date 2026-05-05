@@ -133,6 +133,14 @@ func (ks *Keystore) ValidateToken(siteURL, token string) bool {
 	return subtle.ConstantTimeCompare([]byte(stored), []byte(token)) == 1
 }
 
+// IsPairedSite returns true if the given site URL has been paired with this agent.
+func (ks *Keystore) IsPairedSite(siteURL string) bool {
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+	_, ok := ks.sites[siteURL]
+	return ok
+}
+
 // ListSiteURLs returns all paired site URLs.
 func (ks *Keystore) ListSiteURLs() []string {
 	ks.mu.RLock()

@@ -126,15 +126,23 @@
 			docname: frm.doc.name,
 		});
 
-		// 3) Hand the hash to the local agent to sign
+		// 3) Prompt the user for their token PIN. The browser captures it and
+		// sends to the agent — we cannot rely on the PKCS#11 module to pop a
+		// dialog (HyperPKI's module crashes when called with empty PIN).
+		const pin = await promptForPIN(dialog);
+		if (!pin) {
+			throw new Error(__("PIN entry cancelled"));
+		}
+
+		// 4) Hand the hash + PIN to the local agent to sign
 		dialog.set_state(
 			"awaiting_pin",
-			__("Waiting for PIN entry on your USB token…") +
+			__("Signing on token…") +
 				`<br/><small class='text-muted'>${__(
-					"The token vendor's PIN dialog should appear shortly."
+					"Do not unplug the token while signing."
 				)}</small>`
 		);
-		const signed = await callAgent(port, initiated);
+		const signed = await callAgent(port, initiated, pin);
 
 		// 4) Hand the signature back to the server for injection + verification
 		dialog.set_state("finalising", __("Injecting signature and verifying PDF…"));
@@ -175,7 +183,7 @@
 		}
 	}
 
-	async function callAgent(port, initiated) {
+	async function callAgent(port, initiated, pin) {
 		const resp = await fetch(`https://${AGENT_HOST}:${port}/v1/sign`, {
 			method: "POST",
 			mode: "cors",
@@ -188,6 +196,7 @@
 				hash_to_sign: initiated.hash_to_sign,
 				hash_algorithm: initiated.hash_algorithm,
 				expected_fingerprint: initiated.expected_cert_fingerprint,
+				pin,
 			}),
 		});
 
@@ -213,6 +222,37 @@
 					reject(err);
 				},
 			});
+		});
+	}
+
+	function promptForPIN(progressDialog) {
+		// Hide the progress dialog while we collect the PIN, then re-show.
+		progressDialog.hide();
+		return new Promise((resolve) => {
+			const dlg = new frappe.ui.Dialog({
+				title: __("Enter Token PIN"),
+				fields: [
+					{
+						fieldtype: "Password",
+						fieldname: "pin",
+						label: __("DSC Token PIN"),
+						reqd: 1,
+					},
+				],
+				primary_action_label: __("Sign"),
+				primary_action(values) {
+					dlg.hide();
+					progressDialog.show();
+					resolve(values.pin);
+				},
+				secondary_action_label: __("Cancel"),
+				secondary_action() {
+					dlg.hide();
+					progressDialog.show();
+					resolve(null);
+				},
+			});
+			dlg.show();
 		});
 	}
 

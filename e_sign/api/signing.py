@@ -81,8 +81,8 @@ def initiate(doctype, docname):
 		print_format = rule.print_format
 
 	if not print_format:
-		# Use default print format
-		print_format = frappe.db.get_value("Print Format", {"doc_type": doctype, "default_print_format": 1}, "name")
+		# Use the DocType's default print format (field lives on DocType, not Print Format)
+		print_format = frappe.db.get_value("DocType", doctype, "default_print_format")
 		if not print_format:
 			print_format = "Standard"
 
@@ -241,12 +241,16 @@ def finalize(session_id, signature_bytes_b64, cert_der_b64, cert_chain_der_b64=N
 			signing_request_name,
 		)
 
-		# Send notification to document creator
-		send_signed_notification(
-			signed_result["doctype"],
-			signed_result["docname"],
-			signing_request_name,
-		)
+		# Send notification to document creator. Email failures must NOT roll back
+		# the signing — the PDF is already signed and saved at this point.
+		try:
+			send_signed_notification(
+				signed_result["doctype"],
+				signed_result["docname"],
+				signing_request_name,
+			)
+		except Exception:
+			frappe.log_error(title="DSC: signed notification email failed")
 
 		frappe.db.commit()
 

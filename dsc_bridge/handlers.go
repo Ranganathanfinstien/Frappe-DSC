@@ -195,6 +195,7 @@ type SignRequest struct {
 	HashToSign          string `json:"hash_to_sign"`
 	HashAlgorithm       string `json:"hash_algorithm"`
 	ExpectedFingerprint string `json:"expected_fingerprint"`
+	PIN                 string `json:"pin"`
 }
 
 type SignResponse struct {
@@ -244,10 +245,14 @@ func (h *Handlers) HandleSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sign the hash — this triggers PIN dialog via C_Login
-	// For tokens with native PIN dialog, pass empty string.
-	// The token vendor's middleware handles PIN capture.
-	sigBytes, certDER, err := h.pkcs11.SignHash(ctx, slot, req.ExpectedFingerprint, hashBytes, "")
+	// Sign the hash. The PIN must be provided in the request — most PKCS#11
+	// modules (HyperPKI included) crash in their C code when C_Login is called
+	// with an empty PIN, so we require a non-empty value here.
+	if req.PIN == "" {
+		writeErrorMsg(w, ErrInternalError, "pin is required", http.StatusBadRequest)
+		return
+	}
+	sigBytes, certDER, err := h.pkcs11.SignHash(ctx, slot, req.ExpectedFingerprint, hashBytes, req.PIN)
 	if err != nil {
 		code, status := mapPKCS11Error(err)
 		writeErrorMsg(w, code, err.Error(), status)

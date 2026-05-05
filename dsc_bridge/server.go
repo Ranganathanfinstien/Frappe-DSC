@@ -62,17 +62,22 @@ func securityMiddleware(next http.Handler, ks *Keystore) http.Handler {
 			return
 		}
 
-		// Check X-DSC-Site-Token
+		// Token is optional from the browser (the plaintext is only ever delivered
+		// to the agent at pairing time — the browser has no way to obtain it).
+		// Auth model: if a token is supplied, it MUST match. If not, we fall back
+		// to Origin-only check against paired sites — the same intent expressed
+		// in e_sign.js getSiteToken().
 		token := r.Header.Get("X-DSC-Site-Token")
-		if token == "" {
-			writeError(w, ErrUnauthorized, http.StatusForbidden)
-			return
-		}
-
-		// Validate token against paired site
-		if !ks.ValidateToken(origin, token) {
-			writeError(w, ErrUnauthorized, http.StatusForbidden)
-			return
+		if token != "" {
+			if !ks.ValidateToken(origin, token) {
+				writeError(w, ErrUnauthorized, http.StatusForbidden)
+				return
+			}
+		} else {
+			if !ks.IsPairedSite(origin) {
+				writeError(w, ErrUnauthorized, http.StatusForbidden)
+				return
+			}
 		}
 
 		next.ServeHTTP(w, r)
@@ -80,6 +85,9 @@ func securityMiddleware(next http.Handler, ks *Keystore) http.Handler {
 }
 
 // corsMiddleware adds CORS headers so the browser can call localhost from the Frappe site.
+// Also opts into Chrome's Private Network Access (PNA): when a page on a "less private"
+// network (LAN) calls a "more private" endpoint (127.0.0.1), Chrome requires the target
+// to explicitly allow the access via Access-Control-Allow-Private-Network.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
@@ -88,6 +96,12 @@ func corsMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-DSC-Site-Token")
 			w.Header().Set("Access-Control-Max-Age", "3600")
+		}
+
+		// Chrome PNA opt-in — required when a page on a LAN/public IP fetches localhost.
+		// We always allow this since the agent is intentionally local-loopback only.
+		if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+			w.Header().Set("Access-Control-Allow-Private-Network", "true")
 		}
 
 		// Handle preflight

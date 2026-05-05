@@ -33,6 +33,7 @@ func DefaultPKCS11Paths() []string {
 	switch runtime.GOOS {
 	case "windows":
 		sys32 := os.Getenv("SystemRoot") + `\System32`
+		sysWOW64 := os.Getenv("SystemRoot") + `\SysWOW64` // 32-bit DLLs on 64-bit Windows
 		pf := os.Getenv("ProgramFiles")
 		pfx86 := os.Getenv("ProgramFiles(x86)")
 		paths := []string{
@@ -43,6 +44,8 @@ func DefaultPKCS11Paths() []string {
 			// --- Feitian ePass2003 (eMudhra, Capricorn, Sify, (n)Code, Pantasign) ---
 			filepath.Join(sys32, "eps2003csp11.dll"),
 			filepath.Join(sys32, "eps2003csp11_v2.dll"),
+			filepath.Join(sys32, "eps2003csp11v2.dll"),
+			filepath.Join(sysWOW64, "eps2003csp11v2.dll"), // 32-bit install (when bridge is 386)
 			filepath.Join(sys32, "ShuttleCsp11_3000.dll"),
 			filepath.Join(sys32, "ep3003csp11.dll"), // ePass3003
 			// --- Feitian generic / Hypersecu HyperPKI (uses Castle library) ---
@@ -51,6 +54,9 @@ func DefaultPKCS11Paths() []string {
 			filepath.Join(sys32, "pkcs11hw.dll"),
 			filepath.Join(sys32, "ftepkcs11.dll"),
 			filepath.Join(sys32, "ngp11v211.dll"),
+			// --- Hypersecu HYP2003 (the actual driver name shipped by Hypersecu Canada) ---
+			filepath.Join(sys32, "HyperPKICsp11_2003.dll"),
+			filepath.Join(sysWOW64, "HyperPKICsp11_2003.dll"), // 32-bit install (when bridge is 386)
 			// --- mToken K9 / CryptoID ---
 			filepath.Join(sys32, "mToken CryptoID PKCS11.dll"),
 			// --- TrustKey ---
