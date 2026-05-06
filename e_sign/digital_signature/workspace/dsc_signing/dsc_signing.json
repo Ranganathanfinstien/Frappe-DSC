@@ -1,7 +1,7 @@
 {
  "charts": [],
- "content": "[{\"id\":\"dsc-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Daily Work</b></span>\",\"col\":12}},{\"id\":\"dsc-shortcut-pending\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Pending Signatures\",\"col\":3}},{\"id\":\"dsc-shortcut-mine\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Signed Documents\",\"col\":3}},{\"id\":\"dsc-shortcut-all\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"All Signing Requests\",\"col\":3}},{\"id\":\"dsc-shortcut-pair\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Paired Agents\",\"col\":3}},{\"id\":\"dsc-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dsc-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Configuration & Audit</b></span>\",\"col\":12}},{\"id\":\"dsc-card-config\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuration\",\"col\":4}},{\"id\":\"dsc-card-ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"dsc-card-audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & History\",\"col\":4}}]",
- "creation": "2026-04-20 00:00:00.000000",
+ "content": "[{\"id\":\"dsc-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Daily Work</b></span>\",\"col\":12}},{\"id\":\"dsc-shortcut-pending\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Pending Signatures\",\"col\":3}},{\"id\":\"dsc-shortcut-mine\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Signed Documents\",\"col\":3}},{\"id\":\"dsc-shortcut-all\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"All Signing Requests\",\"col\":3}},{\"id\":\"dsc-shortcut-pair\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Paired Agents\",\"col\":3}},{\"id\":\"dsc-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dsc-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Configuration &amp; Audit</b></span>\",\"col\":12}},{\"id\":\"dsc-card-config\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuration\",\"col\":4}},{\"id\":\"dsc-card-ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"dsc-card-audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & History\",\"col\":4}}]",
+ "creation": "2026-04-20 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -108,7 +108,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-04-20 00:00:00.000000",
+ "modified": "2026-05-06 11:28:52.541945",
  "modified_by": "Administrator",
  "module": "Digital signature",
  "name": "DSC Signing",
@@ -127,7 +127,7 @@
    "format": "{} Pending",
    "label": "My Pending Signatures",
    "link_to": "DSC Signing Request",
-   "stats_filter": "{\"status\":\"Pending\",\"expected_signer_user\":[\"=\",\"user?owner=user\"]}",
+   "stats_filter": "[[\"DSC Signing Request\",\"status\",\"=\",\"Pending\",false],[\"DSC Signing Request\",\"expected_signer_user\",\"=\", frappe.session.user, false]]",
    "type": "DocType"
   },
   {
@@ -136,7 +136,7 @@
    "format": "{} Signed",
    "label": "My Signed Documents",
    "link_to": "DSC Signing Request",
-   "stats_filter": "{\"status\":\"Signed\",\"actual_signer_user\":[\"=\",\"user?owner=user\"]}",
+   "stats_filter": "[[\"DSC Signing Request\",\"status\",\"=\",\"Signed\",false],[\"DSC Signing Request\",\"actual_signer_user\",\"=\", frappe.session.user, false]]",
    "type": "DocType"
   },
   {
@@ -149,7 +149,7 @@
    "doc_view": "List",
    "label": "My Paired Agents",
    "link_to": "DSC Agent Registration",
-   "stats_filter": "{\"user\":[\"=\",\"user?owner=user\"]}",
+   "stats_filter": "{\"user\":[\"=\", frappe.session.user]}",
    "type": "DocType"
   }
  ],
