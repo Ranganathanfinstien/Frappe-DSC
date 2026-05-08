@@ -34,7 +34,7 @@ def initiate(doctype, docname):
 			"source_name": docname,
 			"status": "Pending",
 		},
-		fieldname=["name", "profile", "signature_template", "expected_signer_user"],
+		fieldname=["name", "profile", "signature_template", "expected_signer_user", "rule"],
 		as_dict=True,
 	)
 
@@ -81,10 +81,11 @@ def initiate(doctype, docname):
 		print_format = rule.print_format
 
 	if not print_format:
-		# Use default print format
-		print_format = frappe.db.get_value("Print Format", {"doc_type": doctype, "default_print_format": 1}, "name")
-		if not print_format:
-			print_format = "Standard"
+		# Fallback to "Standard" (Frappe's built-in default — always available).
+		# Frappe 15 removed the `default_print_format` column on Print Format; the
+		# default is resolved via Property Setters or doctype-level defaults, so we
+		# just fall back to "Standard" which frappe.get_print always supports.
+		print_format = "Standard"
 
 	# Update request status to In Progress
 	frappe.db.set_value("DSC Signing Request", signing_request.name, {
