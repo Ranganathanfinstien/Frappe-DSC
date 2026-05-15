@@ -77,8 +77,24 @@ def _evaluate_rules(doc, trigger_event):
 				)
 				continue
 
-		if evaluate_conditions(rule, doc):
-			create_signing_request(doc, rule)
+		matched = evaluate_conditions(rule, doc)
+		if matched:
+			req_name = create_signing_request(doc, rule)
+			# Rule Evaluated + Template Selected events (PRD §F7.2) — emitted
+			# only after the request exists, since DSC Audit Event requires a
+			# signing_request reference.
+			if req_name:
+				from e_sign.digital_signature.audit import log_event
+				log_event(req_name, "Rule Evaluated", {
+					"rule": rule.name,
+					"matched": True,
+					"trigger_event": trigger_event,
+					"priority": rule.priority,
+				})
+				if rule.signature_template:
+					log_event(req_name, "Template Selected", {
+						"template": rule.signature_template,
+					})
 			return  # First match wins (MVP)
 		else:
 			logger.info(
@@ -198,7 +214,12 @@ def create_signing_request(doc, rule):
 	"""Create a DSC Signing Request if one doesn't already exist
 	for the (doctype, docname, rule) combination.
 	Idempotent: re-triggering does not create duplicates.
+
+	Returns the request name (existing or newly created) so callers can
+	emit follow-on audit events against it.
 	"""
+	from e_sign.digital_signature.audit import log_event
+
 	existing = frappe.db.exists("DSC Signing Request", {
 		"source_doctype": doc.doctype,
 		"source_name": doc.name,
@@ -206,9 +227,8 @@ def create_signing_request(doc, rule):
 	})
 
 	if existing:
-		return
+		return existing
 
-	# Resolve expected signer from profile's allowed_users
 	expected_signer = _resolve_signer_user(rule.profile)
 
 	signing_request = frappe.get_doc({
@@ -228,11 +248,72 @@ def create_signing_request(doc, rule):
 		f"{doc.doctype} {doc.name} via rule {rule.name}"
 	)
 
+	# PRD §F7.2 — Request Created audit event
+	log_event(signing_request.name, "Request Created", {
+		"source_doctype": doc.doctype,
+		"source_name": doc.name,
+		"rule": rule.name,
+		"profile": rule.profile,
+		"expected_signer_user": expected_signer,
+	})
+
+	# PRD §F8.1 — notify the expected signer by email so they don't miss the request
+	if expected_signer and expected_signer != "Administrator":
+		try:
+			_notify_signer(signing_request.name, doc, rule, expected_signer)
+		except Exception:
+			frappe.log_error(title="DSC: signer notification email failed")
+
+		try:
+			_assign_signer_todo(signing_request.name, doc, expected_signer)
+		except Exception:
+			frappe.log_error(title="DSC: signer ToDo assignment failed")
+
 	frappe.msgprint(
 		f"DSC Signing Request created for {doc.doctype} {doc.name}",
 		indicator="blue",
 		alert=True,
 	)
+
+	return signing_request.name
+
+
+def _notify_signer(signing_request_name, source_doc, rule, signer_user):
+	"""Email the expected signer that a document is awaiting their signature."""
+	site_url = frappe.utils.get_url()
+	frappe.sendmail(
+		recipients=[signer_user],
+		subject=f"Action required: sign {source_doc.doctype} {source_doc.name}",
+		message=(
+			f"<p>A new document is awaiting your digital signature.</p>"
+			f"<ul>"
+			f"<li><b>Document:</b> {source_doc.doctype} {source_doc.name}</li>"
+			f"<li><b>Rule:</b> {rule.name}</li>"
+			f"<li><b>Profile:</b> {rule.profile}</li>"
+			f"</ul>"
+			f"<p><a href='{site_url}/app/{frappe.scrub(source_doc.doctype).replace('_', '-')}/{source_doc.name}'>"
+			f"Open document</a> and click <b>Sign with DSC</b>.</p>"
+		),
+		now=True,
+	)
+
+
+def _assign_signer_todo(signing_request_name, source_doc, signer_user):
+	"""Create a ToDo on the DSC Signing Request assigned to the signer.
+
+	notify=False because _notify_signer() already sent a richer custom email —
+	we don't want the signer to receive Frappe's generic assignment notice too.
+	"""
+	from frappe.desk.form.assign_to import add as assign_add
+
+	assign_add({
+		"assign_to": [signer_user],
+		"doctype": "DSC Signing Request",
+		"name": signing_request_name,
+		"description": f"Sign {source_doc.doctype} {source_doc.name}",
+		"notify": 0,
+		"priority": "Medium",
+	})
 
 
 def _resolve_signer_user(profile_name):

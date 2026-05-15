@@ -22,7 +22,15 @@
   "trust_store_bundle",
   "expiry_section",
   "enable_expiry_warnings",
-  "expiry_warning_days"
+  "expiry_warning_days",
+  "security_section",
+  "hmac_secret",
+  "signer_location_section",
+  "enforce_signer_location",
+  "geocoding_provider",
+  "column_break_geocoding",
+  "geocoding_api_key",
+  "geocoding_user_agent"
  ],
  "fields": [
   {
@@ -134,6 +142,56 @@
    "label": "Warning Days",
    "options": "DSC Expiry Warning Day",
    "description": "Send certificate expiry notifications this many days before expiry"
+  },
+  {
+   "fieldname": "security_section",
+   "fieldtype": "Section Break",
+   "label": "Security",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "hmac_secret",
+   "fieldtype": "Password",
+   "label": "HMAC Secret",
+   "description": "Server-issued HMAC key delivered to paired agents for tamper-evident /v1/sign requests. Auto-generated on first read; rotate by clearing this field.",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "signer_location_section",
+   "fieldtype": "Section Break",
+   "label": "Signer Location Capture"
+  },
+  {
+   "default": "1",
+   "fieldname": "enforce_signer_location",
+   "fieldtype": "Check",
+   "label": "Enforce Signer Location",
+   "description": "When enabled, the browser must provide GPS coordinates before a document can be signed. Signers who deny browser location access cannot sign."
+  },
+  {
+   "default": "nominatim",
+   "fieldname": "geocoding_provider",
+   "fieldtype": "Select",
+   "label": "Reverse Geocoding Provider",
+   "options": "nominatim\ngoogle",
+   "description": "Service used to convert GPS coordinates into a human-readable address. Nominatim is free; Google requires an API key."
+  },
+  {
+   "fieldname": "column_break_geocoding",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "geocoding_api_key",
+   "fieldtype": "Password",
+   "label": "Geocoding API Key",
+   "description": "Required when provider is Google. Leave blank for Nominatim."
+  },
+  {
+   "default": "e_sign DSC Signing (admin@example.com)",
+   "fieldname": "geocoding_user_agent",
+   "fieldtype": "Data",
+   "label": "Geocoding User-Agent",
+   "description": "Required by Nominatim usage policy. Replace the placeholder email with a real contact address."
   }
  ],
  "issingle": 1,

@@ -1,0 +1,10 @@
+{
+  "host": "127.0.0.1",
+  "port": 4645,
+  "pkcs11_libs": [
+    "C:\\Windows\\System32\\eps2003csp11v2.dll",
+    "C:\\Windows\\SysWOW64\\eps2003csp11v2.dll",
+    "C:\\Windows\\System32\\eps2003csp11.dll",
+    "C:\\Windows\\SysWOW64\\eps2003csp11.dll"
+  ]
+}

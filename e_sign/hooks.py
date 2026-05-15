@@ -30,14 +30,20 @@ doc_events = {
 		"on_submit": "e_sign.digital_signature.rule_engine.evaluate_on_submit",
 		"on_update_after_submit": "e_sign.digital_signature.rule_engine.evaluate_on_update",
 		"on_change": "e_sign.digital_signature.rule_engine.evaluate_on_change",
-	}
+	},
+	"File": {
+		# Refuse deletion of DSC-signed PDFs by non-administrators (PRD §12.6)
+		"before_delete": "e_sign.digital_signature.file_protection.before_delete",
+	},
 }
 
 # Override whitelisted methods
 # ------------------
 # Intercept PDF download to enforce print gating (block prints of unsigned docs)
+# Intercept email sending to enforce email gating (PRD §12.4)
 override_whitelisted_methods = {
 	"frappe.utils.print_format.download_pdf": "e_sign.digital_signature.print_gate.download_pdf",
+	"frappe.core.doctype.communication.email.make": "e_sign.digital_signature.email_gate.make",
 }
 
 # Permission hooks
@@ -45,6 +51,10 @@ override_whitelisted_methods = {
 has_permission = {
 	"DSC Signing Request": "e_sign.digital_signature.permissions.request_has_permission",
 	"DSC Profile": "e_sign.digital_signature.permissions.profile_has_permission",
+}
+
+permission_query_conditions = {
+	"DSC Signing Request": "e_sign.digital_signature.permissions.request_query_conditions",
 }
 
 # Scheduled Tasks
@@ -59,7 +69,7 @@ scheduler_events = {
 	],
 }
 
-# Fixtures — ship roles with the app
+# Fixtures — ship roles + email templates with the app
 # ------------------
 fixtures = [
 	{
@@ -70,7 +80,14 @@ fixtures = [
 
 # Installation
 # ------------------
-# after_install = "e_sign.install.after_install"
+after_install = "e_sign.install.after_install"
+
+# Developer hooks (PRD §6.6, §10.5)
+# Other apps can register handlers like:
+#     dsc_before_sign  = "myapp.dsc_hooks.before_sign"
+#     dsc_after_sign   = "myapp.dsc_hooks.after_sign"
+#     dsc_on_decline   = "myapp.dsc_hooks.on_decline"
+# These are surfaced via api/signing.py's _run_dev_hooks helper.
 
 # Jinja
 # ------------------

@@ -3,14 +3,27 @@ Agent API — endpoints for dsc-bridge desktop agent pairing and certificate reg
 """
 
 import hashlib
+import hmac
 import secrets
 
 import frappe
 from frappe.utils import now_datetime
 
 
-# In-memory store for pairing codes (short-lived, single-use)
-_pairing_codes = {}
+# Pairing codes are stored in Frappe's Redis cache so they survive worker
+# restarts and work across gunicorn workers (a process-local dict would be
+# lost on reload and invisible to other workers).
+_PAIRING_KEY_PREFIX = "e_sign:pairing:"
+_PAIRING_TTL_SECONDS = 600  # 10 minutes
+
+
+def _pairing_key(code):
+	return _PAIRING_KEY_PREFIX + code
+
+
+def _hash_token(token):
+	"""SHA-256 hash for storing a long-lived site token at rest."""
+	return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 @frappe.whitelist()
@@ -21,17 +34,24 @@ def generate_pairing_code():
 	The code is displayed to the user who enters it in the desktop agent.
 	Code expires in 10 minutes.
 	"""
-	code = secrets.token_urlsafe(16)
+	import json
 
-	_pairing_codes[code] = {
+	code = secrets.token_urlsafe(16)
+	payload = {
 		"user": frappe.session.user,
-		"created_at": now_datetime(),
+		"created_at": str(now_datetime()),
 		"site_url": frappe.utils.get_url(),
 	}
 
+	frappe.cache().set_value(
+		_pairing_key(code),
+		json.dumps(payload),
+		expires_in_sec=_PAIRING_TTL_SECONDS,
+	)
+
 	return {
 		"pairing_code": code,
-		"expires_in_seconds": 600,
+		"expires_in_seconds": _PAIRING_TTL_SECONDS,
 		"site_url": frappe.utils.get_url(),
 	}
 
@@ -46,21 +66,25 @@ def validate_pairing_code(pairing_code, agent_fingerprint, os_platform=None, age
 	Returns:
 		dict with site_token for future authenticated requests
 	"""
-	if pairing_code not in _pairing_codes:
+	import json
+
+	key = _pairing_key(pairing_code)
+	raw = frappe.cache().get_value(key)
+	if not raw:
 		frappe.throw("Invalid or expired pairing code.", frappe.AuthenticationError)
 
-	code_data = _pairing_codes.pop(pairing_code)
+	# One-time use: invalidate immediately
+	frappe.cache().delete_value(key)
 
-	# Check expiry (10 minutes)
-	from frappe.utils import time_diff_in_seconds
-	age = time_diff_in_seconds(now_datetime(), code_data["created_at"])
-	if age > 600:
-		frappe.throw("Pairing code has expired. Please generate a new one.", frappe.AuthenticationError)
+	if isinstance(raw, bytes):
+		raw = raw.decode("utf-8")
+	code_data = json.loads(raw)
 
-	# Generate a long-lived site token for this agent
+	# Generate a long-lived site token for this agent. Store only the hash;
+	# the plaintext is returned once to the agent and never persisted.
 	site_token = secrets.token_urlsafe(32)
+	site_token_hash = _hash_token(site_token)
 
-	# Create agent registration
 	agent_reg = frappe.get_doc({
 		"doctype": "DSC Agent Registration",
 		"user": code_data["user"],
@@ -71,25 +95,51 @@ def validate_pairing_code(pairing_code, agent_fingerprint, os_platform=None, age
 		"is_active": 1,
 		"os_platform": os_platform,
 		"agent_version": agent_version,
+		"site_token_hash": site_token_hash,
 	})
 	agent_reg.insert(ignore_permissions=True)
 
-	# Store the site token (encrypted) linked to this registration
-	frappe.db.set_value(
-		"DSC Agent Registration",
-		agent_reg.name,
-		"agent_fingerprint",
-		agent_fingerprint,
-	)
-
 	frappe.db.commit()
+
+	# Provide the server-side HMAC secret to the agent so it can verify HMAC
+	# tags on subsequent /v1/sign requests (PRD §13.4 / §17.1). The plaintext
+	# is delivered exactly once at pair time.
+	from e_sign.digital_signature.doctype.dsc_settings.dsc_settings import (
+		get_or_create_hmac_secret,
+	)
+	hmac_secret = get_or_create_hmac_secret()
 
 	return {
 		"status": "paired",
 		"site_token": site_token,
 		"site_url": code_data["site_url"],
 		"agent_registration": agent_reg.name,
+		"hmac_secret": hmac_secret,
 	}
+
+
+@frappe.whitelist(allow_guest=True)
+def verify_site_token(site_token, agent_fingerprint=None):
+	"""Look up an active agent registration by hashed site token.
+
+	Used by future endpoints that authenticate the agent (e.g. HMAC verification
+	on /v1/sign payloads). Constant-time hash comparison.
+	"""
+	if not site_token:
+		return None
+
+	token_hash = _hash_token(site_token)
+	filters = {"site_token_hash": token_hash, "is_active": 1}
+	if agent_fingerprint:
+		filters["agent_fingerprint"] = agent_fingerprint
+
+	agent_name = frappe.db.get_value("DSC Agent Registration", filters, "name")
+	if not agent_name:
+		return None
+
+	# Touch last_seen_on for liveness telemetry
+	frappe.db.set_value("DSC Agent Registration", agent_name, "last_seen_on", now_datetime())
+	return agent_name
 
 
 @frappe.whitelist()
@@ -110,31 +160,25 @@ def register_certificate(profile_name, cert_der_b64):
 
 	cert_der = base64.b64decode(cert_der_b64)
 
-	# Parse certificate
 	cert = asn1_x509.Certificate.load(cert_der)
 	subject = cert.subject
 
-	# Extract fields
 	common_name = subject.human_friendly
 	issuer = cert.issuer.human_friendly
 	serial = format(cert.serial_number, "X")
 	not_before = cert["tbs_certificate"]["validity"]["not_before"].native
 	not_after = cert["tbs_certificate"]["validity"]["not_after"].native
 
-	# Compute fingerprint
 	fingerprint = hashlib.sha256(cert_der).hexdigest()
 
-	# PEM encoding
 	cert_pem = (
 		"-----BEGIN CERTIFICATE-----\n"
 		+ base64.b64encode(cert_der).decode()
 		+ "\n-----END CERTIFICATE-----"
 	)
 
-	# Load the profile
 	profile = frappe.get_doc("DSC Profile", profile_name)
 
-	# If there's an existing certificate, archive it
 	if profile.certificate_fingerprint:
 		profile.append("previous_certificates", {
 			"certificate_fingerprint": profile.certificate_fingerprint,
@@ -143,7 +187,6 @@ def register_certificate(profile_name, cert_der_b64):
 			"replaced_on": now_datetime(),
 		})
 
-	# Update with new certificate
 	profile.certificate_fingerprint = fingerprint
 	profile.certificate_common_name = common_name
 	profile.certificate_issuer = issuer

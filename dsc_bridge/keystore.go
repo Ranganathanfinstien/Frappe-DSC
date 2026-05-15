@@ -16,6 +16,10 @@ import (
 // keychain (Windows Credential Manager / macOS Keychain / Linux libsecret).
 const keyringService = "dsc-bridge"
 
+// keyringHMACPrefix differentiates HMAC-secret entries from site-token entries
+// in the OS keychain, since both are keyed by site URL.
+const keyringHMACPrefix = "hmac:"
+
 // PairedSite represents a Frappe site that this agent is paired with.
 //
 // SiteToken is populated only transiently — when reading from disk, the token
@@ -133,6 +137,37 @@ func (ks *Keystore) ValidateToken(siteURL, token string) bool {
 	return subtle.ConstantTimeCompare([]byte(stored), []byte(token)) == 1
 }
 
+// SetHMACSecret stores the server-issued HMAC secret for a paired site.
+// Tries the OS keychain first, falls back to the mode-0600 token file.
+func (ks *Keystore) SetHMACSecret(siteURL, secret string) error {
+	if secret == "" {
+		return nil
+	}
+	key := keyringHMACPrefix + siteURL
+	if err := keyring.Set(keyringService, key, secret); err != nil {
+		log.Printf("keystore: keychain unavailable for HMAC, using file fallback: %v", err)
+		return ks.setTokenFile(key, secret)
+	}
+	return nil
+}
+
+// HMACSecret fetches the server-issued HMAC secret for a paired site.
+// Returns empty string + nil error if the site is paired but predates HMAC support.
+func (ks *Keystore) HMACSecret(siteURL string) (string, error) {
+	if !ks.IsPairedSite(siteURL) {
+		return "", fmt.Errorf("site %s is not paired", siteURL)
+	}
+	key := keyringHMACPrefix + siteURL
+
+	if secret, err := keyring.Get(keyringService, key); err == nil {
+		return secret, nil
+	}
+	if secret, err := ks.getTokenFile(key); err == nil {
+		return secret, nil
+	}
+	return "", nil
+}
+
 // IsPairedSite returns true if the given site URL has been paired with this agent.
 func (ks *Keystore) IsPairedSite(siteURL string) bool {
 	ks.mu.RLock()
@@ -164,7 +199,12 @@ func (ks *Keystore) RemoveSite(siteURL string) error {
 	if err := keyring.Delete(keyringService, siteURL); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		log.Printf("keystore: keychain delete failed for %s: %v", siteURL, err)
 	}
+	hmacKey := keyringHMACPrefix + siteURL
+	if err := keyring.Delete(keyringService, hmacKey); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		log.Printf("keystore: keychain delete failed for %s: %v", hmacKey, err)
+	}
 	_ = ks.deleteTokenFile(siteURL)
+	_ = ks.deleteTokenFile(hmacKey)
 
 	return ks.save()
 }

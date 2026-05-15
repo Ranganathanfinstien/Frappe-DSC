@@ -133,11 +133,42 @@
 			);
 		}
 
-		// 2) Ask the server to render the PDF and compute the hash
+		// 1b) Auto-pair the bridge with this Frappe site if it has never been
+		// paired here before. Asks the signer once for confirmation, then mints
+		// the pairing code on the server and posts it to the bridge — no codes
+		// to copy, no system tray to open. Subsequent signs see no pairing UI.
+		if (!isAlreadyPaired(agentStatus)) {
+			dialog.set_state("checking_agent", __("Pairing this computer with the site…"));
+			const ok = await confirmFirstTimePair();
+			if (!ok) {
+				throw new Error(__(
+					"Pairing was declined. This computer must be paired with the site before it can sign documents."
+				));
+			}
+			await autoPairBridge(port);
+		}
+
+		// 2a) Capture signer location. Required for legal evidence — server
+		// will refuse the request if coordinates are missing (and enforcement
+		// is enabled in DSC Settings). Geolocation needs HTTPS in production;
+		// localhost is exempt by browser policy.
+		dialog.set_state("locating", __("Capturing signer location…"));
+		const coords = await captureSignerLocation();
+
+		// 2a-bis) Fetch cert DER from the bridge so the server can build a
+		// PAdES-compliant CMS SignedAttrs (signing-cert must be referenced
+		// in SignedAttrs before the token signs SignedAttrs hash).
+		const certDerB64 = await fetchSignerCertDer(port, agentStatus);
+
+		// 2b) Ask the server to render the PDF and compute the hash
 		dialog.set_state("preparing", __("Preparing PDF and computing document hash…"));
 		const initiated = await callServer(INITIATE_API, {
 			doctype: frm.doctype,
 			docname: frm.doc.name,
+			cert_der_b64: certDerB64,
+			signer_lat: coords.lat,
+			signer_lng: coords.lng,
+			signer_accuracy_m: coords.accuracy_m,
 		});
 		// Capture the request name for the failure handler so it can auto-abort
 		// if anything below this point throws.
@@ -187,6 +218,124 @@
 	//                    AGENT + SERVER PLUMBING
 	// ============================================================
 
+	// Normalises a site URL for comparison ("https://Site.com/" === "https://site.com").
+	function normaliseSiteUrl(u) {
+		if (!u) return "";
+		try {
+			const parsed = new URL(u);
+			return (parsed.protocol + "//" + parsed.host).toLowerCase();
+		} catch (_e) {
+			return String(u).replace(/\/+$/, "").toLowerCase();
+		}
+	}
+
+	// Returns true if the bridge is already paired with this Frappe site.
+	function isAlreadyPaired(agentStatus) {
+		const here = normaliseSiteUrl(window.location.origin);
+		const paired = (agentStatus && agentStatus.paired_sites) || [];
+		return paired.some((s) => normaliseSiteUrl(s) === here);
+	}
+
+	// Pair the bridge with this Frappe site without showing the user a code.
+	// Server mints a one-time code, JS posts it straight to the bridge, bridge
+	// stores the resulting site token in the OS keychain. Total user actions: 0.
+	async function autoPairBridge(port) {
+		const codeResp = await new Promise((resolve, reject) => {
+			frappe.call({
+				method: "e_sign.api.agent.generate_pairing_code",
+				callback: (r) => (r && r.message ? resolve(r.message) : reject(new Error(__("Could not generate a pairing code.")))),
+				error: () => reject(new Error(__("Could not generate a pairing code."))),
+			});
+		});
+
+		const resp = await fetch(`https://${AGENT_HOST}:${port}/v1/pair`, {
+			method: "POST",
+			mode: "cors",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				pairing_code: codeResp.pairing_code,
+				site_url: codeResp.site_url || window.location.origin,
+			}),
+		});
+		if (!resp.ok) {
+			let detail = "";
+			try { detail = (await resp.json()).message || ""; } catch (_e) {}
+			throw new Error(__("Could not pair this computer with the signing site.") + (detail ? " " + detail : ""));
+		}
+	}
+
+	// Ask the user once before pairing. Most signers will just click "Pair" —
+	// this confirmation exists only so we never silently register a machine
+	// against a Frappe site without their awareness.
+	function confirmFirstTimePair() {
+		return new Promise((resolve) => {
+			frappe.confirm(
+				__(
+					"This is the first time signing from this computer. " +
+					"Allow it to be paired with this site so signing works automatically from now on?"
+				),
+				() => resolve(true),
+				() => resolve(false)
+			);
+		});
+	}
+
+	function captureSignerLocation() {
+		// Wraps navigator.geolocation in a promise. Rejects with a
+		// user-readable Error so the signing pipeline aborts cleanly when
+		// the signer denies permission, the device has no location service,
+		// or we time out waiting for a fix.
+		return new Promise((resolve, reject) => {
+			if (!("geolocation" in navigator)) {
+				reject(new Error(__(
+					"This browser does not support location services. " +
+					"Digital signing requires a browser that can provide location."
+				)));
+				return;
+			}
+			// Browsers block geolocation on plain HTTP (localhost is exempt).
+			// On non-secure origins, skip browser capture and let the server
+			// decide whether coordinates are mandatory (DSC Settings).
+			const proto = window.location.protocol;
+			const host = window.location.hostname;
+			const isSecure = proto === "https:" || host === "localhost" || host === "127.0.0.1";
+			if (!isSecure) {
+				resolve({ lat: null, lng: null, accuracy_m: null });
+				return;
+			}
+			navigator.geolocation.getCurrentPosition(
+				(pos) => {
+					resolve({
+						lat: pos.coords.latitude,
+						lng: pos.coords.longitude,
+						accuracy_m: pos.coords.accuracy,
+					});
+				},
+				(err) => {
+					let msg = __("Location access is required to sign documents.");
+					if (err && err.code === err.PERMISSION_DENIED) {
+						msg = __(
+							"Location access was blocked. Open your browser's site settings, " +
+							"allow location for this site, then click Sign again."
+						);
+					} else if (err && err.code === err.POSITION_UNAVAILABLE) {
+						msg = __(
+							"Your device could not determine its location. " +
+							"Enable location services in your operating system and try again."
+						);
+					} else if (err && err.code === err.TIMEOUT) {
+						msg = __(
+							"Timed out waiting for location. Move closer to a window or check that " +
+							"location services are enabled, then try again."
+						);
+					}
+					reject(new Error(msg));
+				},
+				{ enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+			);
+		});
+	}
+
 	async function pingAgent(port) {
 		try {
 			const resp = await fetch(`https://${AGENT_HOST}:${port}/v1/status`, {
@@ -198,6 +347,33 @@
 		} catch (e) {
 			return null;
 		}
+	}
+
+	// Asks the bridge for the certificate list on the connected token and
+	// returns the DER (base64) of the cert that should be used for signing.
+	// We pick the first cert; the server will reject if its fingerprint
+	// doesn't match the one on the DSC Profile.
+	async function fetchSignerCertDer(port, agentStatus) {
+		const resp = await fetch(`https://${AGENT_HOST}:${port}/v1/certs`, {
+			method: "GET",
+			mode: "cors",
+			headers: { "X-DSC-Site-Token": getSiteToken() },
+		});
+		if (!resp.ok) {
+			throw new Error(__("Could not read certificate from the token."));
+		}
+		const body = await resp.json();
+		const certs = (body && body.certs) || [];
+		if (!certs.length) {
+			throw new Error(__("No certificate found on the token."));
+		}
+		const cert = certs[0];
+		if (!cert.cert_der_b64) {
+			throw new Error(__(
+				"The DSC Bridge on this machine is too old — please update it to receive the cert DER."
+			));
+		}
+		return cert.cert_der_b64;
 	}
 
 	async function callAgent(port, initiated, pin) {
@@ -213,6 +389,12 @@
 				hash_to_sign: initiated.hash_to_sign,
 				hash_algorithm: initiated.hash_algorithm,
 				expected_fingerprint: initiated.expected_cert_fingerprint,
+				// HMAC + replay protection (PRD §13.4 / §17.1) — server signs
+				// the payload with the shared HMAC secret; the bridge verifies
+				// it before performing any token operation.
+				timestamp: initiated.timestamp,
+				nonce: initiated.nonce,
+				hmac: initiated.hmac,
 				pin,
 			}),
 		});
@@ -288,6 +470,7 @@
 	function buildProgressDialog(frm) {
 		const STATES = [
 			{ key: "checking_agent", label: __("Contacting agent") },
+			{ key: "locating", label: __("Capturing location") },
 			{ key: "preparing", label: __("Preparing PDF") },
 			{ key: "awaiting_pin", label: __("Waiting for PIN") },
 			{ key: "finalising", label: __("Finalising signature") },

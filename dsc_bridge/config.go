@@ -180,7 +180,10 @@ func LoadConfig() (*Config, error) {
 		cfg.Port = fileCfg.Port
 	}
 	if len(fileCfg.PKCS11Libs) > 0 {
-		cfg.PKCS11Libs = fileCfg.PKCS11Libs
+		// Prepend user-supplied libs to defaults so user paths are tried first
+		// but the built-in vendor catalog is still attempted. Avoids the trap
+		// where a stale or narrow config file silently disables driver discovery.
+		cfg.PKCS11Libs = append(fileCfg.PKCS11Libs, cfg.PKCS11Libs...)
 	}
 
 	return cfg, nil

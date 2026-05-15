@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -8,6 +11,8 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -130,6 +135,15 @@ func (h *Handlers) HandlePair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Persist the HMAC secret separately if the server provided one. Older
+	// servers without HMAC support won't, so make this best-effort: lack of a
+	// secret simply means HMAC verification is skipped on /v1/sign.
+	if pairing.HMACSecret != "" {
+		if err := h.ks.SetHMACSecret(req.SiteURL, pairing.HMACSecret); err != nil {
+			log.Printf("pairing: SetHMACSecret failed for %s: %v", req.SiteURL, err)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, PairResponse{
 		AgentFingerprint: h.agentFP,
 		AgentVersion:     AgentVersion,
@@ -140,6 +154,7 @@ func (h *Handlers) HandlePair(w http.ResponseWriter, r *http.Request) {
 type pairingResult struct {
 	SiteToken         string
 	AgentRegistration string
+	HMACSecret        string
 }
 
 // validatePairingCode calls the Frappe site to validate the one-time pairing code.
@@ -172,6 +187,7 @@ func validatePairingCode(siteURL, code, agentFP string) (*pairingResult, error) 
 		Message struct {
 			SiteToken         string `json:"site_token"`
 			AgentRegistration string `json:"agent_registration"`
+			HMACSecret        string `json:"hmac_secret"`
 		} `json:"message"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -185,6 +201,7 @@ func validatePairingCode(siteURL, code, agentFP string) (*pairingResult, error) 
 	return &pairingResult{
 		SiteToken:         result.Message.SiteToken,
 		AgentRegistration: result.Message.AgentRegistration,
+		HMACSecret:        result.Message.HMACSecret,
 	}, nil
 }
 
@@ -195,7 +212,14 @@ type SignRequest struct {
 	HashToSign          string `json:"hash_to_sign"`
 	HashAlgorithm       string `json:"hash_algorithm"`
 	ExpectedFingerprint string `json:"expected_fingerprint"`
-	PIN                 string `json:"pin"`
+	// HMAC + replay protection (PRD §13.4 / §17.1).
+	// Server signs (session_id|hash|hash_algo|timestamp|nonce) with the shared
+	// HMAC secret delivered to the agent at pair time. Bridge verifies before
+	// touching the token.
+	Timestamp int64  `json:"timestamp"`
+	Nonce     string `json:"nonce"`
+	HMAC      string `json:"hmac"`
+	PIN       string `json:"pin"`
 }
 
 type SignResponse struct {
@@ -223,6 +247,37 @@ func (h *Handlers) HandleSign(w http.ResponseWriter, r *http.Request) {
 	if req.HashAlgorithm != "" && req.HashAlgorithm != "sha256" {
 		writeError(w, ErrUnsupportedAlgo, http.StatusBadRequest)
 		return
+	}
+
+	// HMAC + replay protection (PRD §13.4 / §17.1).
+	// We resolve the HMAC secret using the calling site's Origin header — the
+	// same site the user is signing for. If the site has no HMAC secret stored
+	// (older pair), we skip verification but warn (transition support); once
+	// every paired agent has rotated, this branch can be tightened to fail-closed.
+	origin := r.Header.Get("Origin")
+	if req.HMAC != "" && req.Timestamp != 0 && req.Nonce != "" {
+		if origin == "" {
+			writeErrorMsg(w, ErrUnauthorized, "missing Origin for HMAC", http.StatusForbidden)
+			return
+		}
+		secret, err := h.ks.HMACSecret(origin)
+		if err != nil || secret == "" {
+			log.Printf("sign: no HMAC secret stored for %s — skipping verification (re-pair to enable)", origin)
+		} else {
+			if err := verifyHMAC(secret, &req); err != nil {
+				log.Printf("sign: HMAC verification failed for %s: %v", origin, err)
+				writeErrorMsg(w, ErrUnauthorized, "HMAC verification failed", http.StatusForbidden)
+				return
+			}
+		}
+	} else {
+		// No HMAC fields supplied — only acceptable if the site has no secret stored.
+		if origin != "" {
+			if secret, err := h.ks.HMACSecret(origin); err == nil && secret != "" {
+				writeErrorMsg(w, ErrUnauthorized, "HMAC required but missing", http.StatusForbidden)
+				return
+			}
+		}
 	}
 
 	// Find the certificate across all tokens
@@ -283,6 +338,39 @@ func (h *Handlers) HandleSign(w http.ResponseWriter, r *http.Request) {
 		SignedAtUTC:       time.Now().UTC().Format("2006-01-02T15:04:05Z"),
 		AgentFingerprint:  h.agentFP,
 	})
+}
+
+// verifyHMAC checks the server-issued HMAC against the SignRequest payload and
+// rejects requests outside a 60-second timestamp window (PRD §13.4).
+func verifyHMAC(secret string, req *SignRequest) error {
+	now := time.Now().Unix()
+	if req.Timestamp <= 0 {
+		return fmt.Errorf("missing timestamp")
+	}
+	skew := now - req.Timestamp
+	if skew < 0 {
+		skew = -skew
+	}
+	if skew > 60 {
+		return fmt.Errorf("timestamp outside 60s window (skew=%ds)", skew)
+	}
+
+	payload := strings.Join([]string{
+		req.SessionID,
+		req.HashToSign,
+		req.HashAlgorithm,
+		strconv.FormatInt(req.Timestamp, 10),
+		req.Nonce,
+	}, "|")
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	expected := hex.EncodeToString(mac.Sum(nil))
+
+	if subtle.ConstantTimeCompare([]byte(expected), []byte(req.HMAC)) != 1 {
+		return fmt.Errorf("hmac mismatch")
+	}
+	return nil
 }
 
 // --- Helpers ---

@@ -152,6 +152,30 @@ def test_pairing():
 	print("\nPASS — pairing handshake completed and registration stored.")
 
 
+def test_geocode():
+	"""Standalone smoke test for the reverse-geocoding helper.
+
+	Useful for verifying outbound internet + Nominatim policy compliance
+	without needing a USB token or the full signing flow.
+	"""
+	from e_sign.digital_signature.geocoding import reverse_geocode
+
+	# Anna Salai, Chennai — a well-known landmark for predictable output.
+	lat, lng = 13.0604, 80.2496
+	print(f"reverse_geocode({lat}, {lng})")
+	result = reverse_geocode(lat, lng)
+	print(f"  provider: {result['provider']}")
+	print(f"  ok:       {result['ok']}")
+	print(f"  address:  {result['address']}")
+	if not result["ok"]:
+		print(f"  reason:   {result['raw'].get('reason')}")
+		print("\nFAIL — geocoding did not return a real address.")
+		print("Check: (1) outbound internet, (2) DSC Settings > geocoding_user_agent,")
+		print("       (3) DSC Settings > geocoding_provider, (4) error log for details.")
+	else:
+		print("\nPASS — reverse geocoding works.")
+
+
 def _ensure_customer() -> str:
 	name = "DSC Demo Customer"
 	if not frappe.db.exists("Customer", name):
@@ -229,6 +253,14 @@ def _settings():
 	doc.pdf_preparation_engine = "pyhanko"
 	doc.default_hash_algorithm = "sha256"
 	doc.enable_expiry_warnings = 1
+
+	# Signer location capture — new in 2026-05. Demo defaults: enforcement ON
+	# (browser must provide GPS), Nominatim as the geocoder so no API key is
+	# required for first-run testing. Replace the User-Agent email with a
+	# real contact address before going to production per Nominatim's policy.
+	doc.enforce_signer_location = 1
+	doc.geocoding_provider = "nominatim"
+	doc.geocoding_user_agent = "e_sign DSC Demo (demo@example.com)"
 
 	doc.set("expiry_warning_days", [])
 	for d in (30, 15, 7, 1):
