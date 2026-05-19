@@ -17,11 +17,12 @@ dependencies = [
 requires = ["flit_core >=3.4,<4"]
 build-backend = "flit_core.buildapi"
 
-# Frappe framework versions this app is compatible with. The marketplace
-# validates this — the value MUST be an NPM-style semver range (space-separated
-# bounds, e.g. ">=15.0.0 <16.0.0"), not a Python operator like "~=15.0.0".
+# Frappe framework versions this app is compatible with. Frappe Cloud's
+# marketplace parses this with semantic_version.SimpleSpec, which requires the
+# bounds to be separated by a COMMA (a space is rejected as "Invalid version
+# format", despite what the marketplace error message's example shows).
 [tool.bench.frappe-dependencies]
-frappe = ">=15.0.0 <16.0.0"
+frappe = ">=15.0.0,<16.0.0"
 
 # These dependencies are only installed when developer mode is enabled
 [tool.bench.dev-dependencies]
