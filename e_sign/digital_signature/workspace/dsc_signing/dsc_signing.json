@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"dsc-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Daily Work</b></span>\",\"col\":12}},{\"id\":\"dsc-shortcut-pending\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Pending Signatures\",\"col\":3}},{\"id\":\"dsc-shortcut-mine\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Signed Documents\",\"col\":3}},{\"id\":\"dsc-shortcut-all\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"All Signing Requests\",\"col\":3}},{\"id\":\"dsc-shortcut-pair\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Paired Agents\",\"col\":3}},{\"id\":\"dsc-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dsc-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Configuration &amp; Audit</b></span>\",\"col\":12}},{\"id\":\"dsc-card-config\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuration\",\"col\":4}},{\"id\":\"dsc-card-ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"dsc-card-audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & History\",\"col\":4}}]",
+ "content": "[{\"id\":\"dsc-header-1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Daily Work</b></span>\",\"col\":12}},{\"id\":\"dsc-shortcut-newdoc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sign a Document\",\"col\":3}},{\"id\":\"dsc-shortcut-pending\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Pending Signatures\",\"col\":3}},{\"id\":\"dsc-shortcut-mine\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Signed Documents\",\"col\":3}},{\"id\":\"dsc-shortcut-all\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"All Signing Requests\",\"col\":3}},{\"id\":\"dsc-shortcut-pair\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"My Paired Agents\",\"col\":3}},{\"id\":\"dsc-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"dsc-header-2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Configuration &amp; Audit</b></span>\",\"col\":12}},{\"id\":\"dsc-card-config\",\"type\":\"card\",\"data\":{\"card_name\":\"Configuration\",\"col\":4}},{\"id\":\"dsc-card-ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"dsc-card-audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & History\",\"col\":4}}]",
  "creation": "2026-04-20 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -65,9 +65,19 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Operations",
-   "link_count": 2,
+   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Sign a Document",
+   "link_count": 0,
+   "link_to": "DSC Document Sign",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -108,7 +118,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-05-06 11:28:52.541945",
+ "modified": "2026-05-16 13:30:00.000000",
  "modified_by": "Administrator",
  "module": "Digital signature",
  "name": "DSC Signing",
@@ -121,6 +131,13 @@
  "roles": [],
  "sequence_id": 50.0,
  "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "New",
+   "label": "Sign a Document",
+   "link_to": "DSC Document Sign",
+   "type": "DocType"
+  },
   {
    "color": "Yellow",
    "doc_view": "List",

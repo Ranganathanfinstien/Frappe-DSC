@@ -28,6 +28,20 @@ def _run_dev_hooks(hook_name, **kwargs):
 			frappe.log_error(title=f"DSC dev hook {hook_name} -> {handler} failed")
 
 
+def _read_uploaded_pdf(file_url):
+	"""Return the raw bytes of the PDF attached to a DSC Document Sign record."""
+	if not file_url:
+		frappe.throw("No PDF has been uploaded on this document.")
+	file_doc = frappe.get_doc("File", {"file_url": file_url})
+	content = file_doc.get_content()
+	if isinstance(content, str):
+		# A PDF read as text — re-encode preserving every byte.
+		content = content.encode("latin-1")
+	if not content or not content[:5].startswith(b"%PDF"):
+		frappe.throw("The uploaded file is not a valid PDF.")
+	return content
+
+
 @frappe.whitelist()
 def initiate(doctype, docname, cert_der_b64, signer_lat=None, signer_lng=None, signer_accuracy_m=None):
 	# Frappe form_dict serializes JSON null as empty string. Normalise so the
@@ -134,17 +148,41 @@ def initiate(doctype, docname, cert_der_b64, signer_lat=None, signer_lng=None, s
 		sig_template.stamp_show_reason = 1
 		sig_template.stamp_show_location = 1
 
-	# Get print format from the rule
-	print_format = None
-	if signing_request.get("rule"):
-		rule = frappe.get_doc("DSC Rule", signing_request.rule)
-		print_format = rule.print_format
+	# Ad-hoc uploaded-document signing: when the source is a DSC Document Sign
+	# record, the bytes to sign are the user's uploaded PDF and the signature
+	# box comes from the placement they made interactively — not a print
+	# format or a saved signature template.
+	uploaded_pdf_bytes = None
+	placement = None
+	if doctype == "DSC Document Sign":
+		doc_sign = frappe.get_doc(doctype, docname)
+		uploaded_pdf_bytes = _read_uploaded_pdf(doc_sign.uploaded_pdf)
+		if not (doc_sign.sig_width and doc_sign.sig_height):
+			frappe.throw(
+				"No signature position has been set. Open the document, drag the "
+				"signature box onto the page, and save before signing."
+			)
+		placement = {
+			"page": doc_sign.sig_page or 1,
+			"x": doc_sign.sig_x or 0,
+			"y": doc_sign.sig_y or 0,
+			"width": doc_sign.sig_width,
+			"height": doc_sign.sig_height,
+		}
+		doc_sign.db_set("status", "In Progress", update_modified=False)
 
-	if not print_format:
-		# Use the DocType's default print format (field lives on DocType, not Print Format)
-		print_format = frappe.db.get_value("DocType", doctype, "default_print_format")
+	# Get print format from the rule (skipped for uploaded documents)
+	print_format = None
+	if uploaded_pdf_bytes is None:
+		if signing_request.get("rule"):
+			rule = frappe.get_doc("DSC Rule", signing_request.rule)
+			print_format = rule.print_format
+
 		if not print_format:
-			print_format = "Standard"
+			# Use the DocType's default print format (field lives on DocType, not Print Format)
+			print_format = frappe.db.get_value("DocType", doctype, "default_print_format")
+			if not print_format:
+				print_format = "Standard"
 
 	# Update request status to In Progress
 	request_updates = {
@@ -199,6 +237,8 @@ def initiate(doctype, docname, cert_der_b64, signer_lat=None, signer_lng=None, s
 		signing_request_name=signing_request.name,
 		cert_der=cert_der,
 		signer_location_text=signer_location_text,
+		pdf_bytes=uploaded_pdf_bytes,
+		placement=placement,
 	)
 
 	# Update request with hash
@@ -402,6 +442,14 @@ def finalize(session_id, signature_bytes_b64, cert_der_b64, cert_chain_der_b64=N
 			"signed_file": file_doc.name,
 		})
 
+		# Mirror the outcome onto the DSC Document Sign record, when that's the
+		# source — keeps its status and signed-PDF link in step with the request.
+		if signed_result["doctype"] == "DSC Document Sign":
+			frappe.db.set_value("DSC Document Sign", signed_result["docname"], {
+				"status": "Signed",
+				"signed_file": file_doc.name,
+			})
+
 		# Log success
 		log_event(signing_request_name, "Request Signed", {
 			"duration_seconds": duration,
@@ -452,6 +500,10 @@ def finalize(session_id, signature_bytes_b64, cert_der_b64, cert_chain_der_b64=N
 			"status": "Failed",
 			"failure_reason": str(e)[:500],
 		})
+		if req_doc.source_doctype == "DSC Document Sign":
+			frappe.db.set_value(
+				"DSC Document Sign", req_doc.source_name, "status", "Failed"
+			)
 		log_event(signing_request_name, "Request Failed", {
 			"reason": str(e),
 			"error_type": type(e).__name__,
@@ -545,6 +597,9 @@ def retry(signing_request):
 	doc.failure_reason = ""
 	doc.save(ignore_permissions=True)
 
+	if doc.source_doctype == "DSC Document Sign":
+		frappe.db.set_value("DSC Document Sign", doc.source_name, "status", "Pending")
+
 	log_event(signing_request, "Request Retried", {
 		"previous_failure": doc.failure_reason,
 	})
@@ -565,6 +620,9 @@ def cancel(signing_request, reason=""):
 	doc.status = "Cancelled"
 	doc.cancelled_on = now_datetime()
 	doc.save(ignore_permissions=True)
+
+	if doc.source_doctype == "DSC Document Sign":
+		frappe.db.set_value("DSC Document Sign", doc.source_name, "status", "Cancelled")
 
 	log_event(signing_request, "Request Cancelled", {"reason": reason})
 
@@ -598,6 +656,9 @@ def abort_in_progress(signing_request, reason=""):
 	doc.status = "Pending"
 	doc.failure_reason = (reason or "Client-side abort")[:140]
 	doc.save(ignore_permissions=True)
+
+	if doc.source_doctype == "DSC Document Sign":
+		frappe.db.set_value("DSC Document Sign", doc.source_name, "status", "Pending")
 
 	log_event(signing_request, "Request Aborted", {"reason": reason})
 

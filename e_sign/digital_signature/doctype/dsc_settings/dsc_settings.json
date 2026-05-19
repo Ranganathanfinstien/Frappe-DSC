@@ -123,7 +123,7 @@
    "fieldname": "trust_store_bundle",
    "fieldtype": "Attach",
    "label": "Custom CA Trust Store Bundle",
-   "description": "Upload a PEM bundle of trusted CA certificates for offline signature verification"
+   "description": "Optional. All CCA India licensed CAs are already trusted by default. Upload a PEM bundle here only to trust ADDITIONAL CAs, e.g. a private or internal CA. Uploaded certificates are added on top of the built-in ones."
   },
   {
    "fieldname": "expiry_section",

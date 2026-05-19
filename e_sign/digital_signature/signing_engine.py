@@ -16,6 +16,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from io import BytesIO
@@ -76,6 +77,8 @@ def prepare_pdf_for_signing(
 	signing_request_name,
 	cert_der,
 	signer_location_text=None,
+	pdf_bytes=None,
+	placement=None,
 ):
 	"""Phase 1: build a PAdES-compliant PDF, return the SignedAttrs hash for the token.
 
@@ -90,24 +93,44 @@ def prepare_pdf_for_signing(
 	SignedAttrs references the signer-certificate via `signing-certificate-v2`
 	and Adobe's verifier checks that the cert chain in the CMS matches.
 
+	pdf_bytes / placement support ad-hoc uploaded-document signing (DSC Document
+	Sign): when pdf_bytes is given, that PDF is signed as-is instead of being
+	rendered from a print format, and placement — a dict of
+	{page, x, y, width, height} in PDF points — positions the signature box
+	instead of the saved signature template field.
+
 	Returns:
 		dict with session_id, hash_to_sign (hex of SignedAttrs hash), hash_algorithm, expected_cert_fingerprint
 	"""
-	pdf_bytes = generate_pdf_from_print_format(doctype, docname, print_format)
+	if pdf_bytes is None:
+		pdf_bytes = generate_pdf_from_print_format(doctype, docname, print_format)
 
-	sig_field_row = None
-	if sig_template.fields:
-		sig_field_row = sig_template.fields[0]
-
-	page_number = (sig_field_row.page_number - 1) if sig_field_row else 0
-	box = None
-	if sig_field_row and sig_field_row.x and sig_field_row.y:
+	if placement:
+		# Interactive placement (uploaded document) — coordinates already in
+		# PDF points with origin at the bottom-left, exactly what pyHanko wants.
+		page_number = max(int(placement.get("page") or 1) - 1, 0)
+		px = placement.get("x") or 0
+		py = placement.get("y") or 0
 		box = (
-			sig_field_row.x,
-			sig_field_row.y,
-			sig_field_row.x + (sig_field_row.width or 200),
-			sig_field_row.y + (sig_field_row.height or 80),
+			px,
+			py,
+			px + (placement.get("width") or 200),
+			py + (placement.get("height") or 80),
 		)
+	else:
+		sig_field_row = None
+		if sig_template.fields:
+			sig_field_row = sig_template.fields[0]
+
+		page_number = (sig_field_row.page_number - 1) if sig_field_row else 0
+		box = None
+		if sig_field_row and sig_field_row.x and sig_field_row.y:
+			box = (
+				sig_field_row.x,
+				sig_field_row.y,
+				sig_field_row.x + (sig_field_row.width or 200),
+				sig_field_row.y + (sig_field_row.height or 80),
+			)
 
 	settings = frappe.get_single("DSC Settings")
 	hash_algorithm = settings.default_hash_algorithm or "sha256"
@@ -371,6 +394,60 @@ def save_signed_pdf(signed_result):
 	return file_doc
 
 
+# PEM bundle of every CCA India licensed CA, shipped with the app so signature
+# verification trusts all Indian DSC tokens out of the box — no admin setup.
+_BUILTIN_TRUST_BUNDLE = os.path.join(
+	os.path.dirname(__file__), "cca_india_trust_bundle.pem"
+)
+
+
+def _parse_pem_certs(pem_bytes):
+	"""Parse a PEM bundle's bytes into a list of x509 Certificate objects."""
+	from asn1crypto import pem
+	from asn1crypto.x509 import Certificate
+
+	if isinstance(pem_bytes, str):
+		pem_bytes = pem_bytes.encode()
+	return [
+		Certificate.load(der)
+		for _, _, der in pem.unarmor(pem_bytes, multiple=True)
+	]
+
+
+def _load_trust_store():
+	"""Build a pyhanko ValidationContext for signature verification.
+
+	Trust roots = the CCA India bundle shipped with the app, plus any extra CA
+	bundle an admin uploads in DSC Settings. The built-in bundle means every
+	Indian DSC token verifies as trusted with zero setup; the uploaded bundle
+	is additive, for trusting extra CAs (e.g. a private/internal CA).
+
+	Returns ValidationContext or None. None falls back to pyhanko defaults so
+	verification never breaks if neither source yields any certificates.
+	"""
+	try:
+		from pyhanko_certvalidator import ValidationContext
+
+		anchors = []
+
+		if os.path.exists(_BUILTIN_TRUST_BUNDLE):
+			with open(_BUILTIN_TRUST_BUNDLE, "rb") as fh:
+				anchors.extend(_parse_pem_certs(fh.read()))
+
+		bundle_url = frappe.db.get_single_value("DSC Settings", "trust_store_bundle")
+		if bundle_url:
+			file_doc = frappe.get_doc("File", {"file_url": bundle_url})
+			anchors.extend(_parse_pem_certs(file_doc.get_content()))
+
+		if not anchors:
+			return None
+
+		return ValidationContext(trust_roots=anchors, allow_fetching=False)
+	except Exception:
+		frappe.log_error(title="DSC trust store load failed")
+		return None
+
+
 def verify_signed_pdf(pdf_bytes):
 	"""Verify a signed PDF's signature.
 
@@ -390,10 +467,16 @@ def verify_signed_pdf(pdf_bytes):
 		if not sigs:
 			return {"is_valid": False, "error": "No signatures found in PDF"}
 
+		validation_context = _load_trust_store()
+
 		results = []
 		for sig in sigs:
 			try:
-				status = asyncio.run(async_validate_pdf_signature(sig))
+				status = asyncio.run(
+					async_validate_pdf_signature(
+						sig, signer_validation_context=validation_context
+					)
+				)
 				results.append(
 					{
 						"field_name": sig.field_name,
@@ -404,8 +487,6 @@ def verify_signed_pdf(pdf_bytes):
 					}
 				)
 			except Exception as ve:
-				# Self-signed certs or missing trust anchors will fail validation
-				# but the signature structure may still be intact
 				results.append(
 					{
 						"field_name": sig.field_name,
@@ -422,6 +503,7 @@ def verify_signed_pdf(pdf_bytes):
 			"is_valid": all_valid,
 			"signatures": results,
 			"signature_count": len(results),
+			"trust_store_configured": validation_context is not None,
 		}
 
 	except Exception as e:

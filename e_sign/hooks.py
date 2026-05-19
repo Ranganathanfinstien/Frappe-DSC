@@ -19,6 +19,10 @@ app_include_css = "/assets/e_sign/css/e_sign.css"
 doctype_js = {
 	"DSC Agent Registration": "digital_signature/doctype/dsc_agent_registration/dsc_agent_registration.js",
 	"DSC Signature Template": "digital_signature/doctype/dsc_signature_template/dsc_signature_template.js",
+	# NOTE: do NOT add "DSC Document Sign" here — a JS file inside the doctype's
+	# own folder (dsc_document_sign.js) is auto-loaded as its client script.
+	# Listing it in doctype_js too would load it twice and crash the form with
+	# a "redeclaration of const" SyntaxError.
 }
 
 # Document Events — universal listener for the Rules Engine
