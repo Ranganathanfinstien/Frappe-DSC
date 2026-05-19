@@ -76,7 +76,8 @@ do.
 - Python 3.10+
 - Python packages (installed automatically): `pyhanko[image-support]`, `asn1crypto`
 - A PKCS#11-compatible DSC USB token + its vendor driver, on each signer's machine
-- The **bridge agent** installed on each signer's machine (Windows or macOS)
+- The **bridge agent** installed on each signer's machine (Windows)
+- Currently, our application supports Windows only. Support for macOS and Linux will be added in future releases.
 
 ## Installation
 
