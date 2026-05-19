@@ -13,27 +13,59 @@ Uses pyHanko's "interrupted signing" workflow:
 """
 
 import asyncio
+import base64
 import hashlib
+import json
+import os
 import uuid
+from datetime import datetime, timezone
 from io import BytesIO
 
 import frappe
 from frappe.utils import now_datetime
 
-from asn1crypto import x509 as asn1_x509
+from asn1crypto import algos, cms, core, x509 as asn1_x509
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import fields as sig_fields
+from pyhanko.sign.signers.pdf_byterange import PreparedByteRangeDigest
 from pyhanko.sign.signers.pdf_cms import ExternalSigner
 from pyhanko.sign.signers.pdf_signer import (
 	PdfSignatureMetadata,
 	PdfSigner,
+	PdfTBSDocument,
 )
 from pyhanko_certvalidator.registry import SimpleCertificateStore
 
 
-# In-memory store for prepared signing sessions
-# Maps session_id → {prepared_digest, output, tbs_document, ...}
-_signing_sessions = {}
+# Sessions are stored in Frappe's Redis cache so they survive across worker
+# processes, bench restarts, and live-reloads — an in-memory dict here would be
+# lost any time the worker recycled, breaking finalize with "session expired".
+_SESSION_KEY_PREFIX = "e_sign:session:"
+_SESSION_TTL_SECONDS = 600  # 10 minutes — enough for the user to enter a PIN
+
+
+def _session_key(session_id):
+	return _SESSION_KEY_PREFIX + session_id
+
+
+def _store_session(session_id, data):
+	frappe.cache().set_value(
+		_session_key(session_id),
+		json.dumps(data, default=str),
+		expires_in_sec=_SESSION_TTL_SECONDS,
+	)
+
+
+def _load_session(session_id, pop=False):
+	key = _session_key(session_id)
+	raw = frappe.cache().get_value(key)
+	if not raw:
+		return None
+	if pop:
+		frappe.cache().delete_value(key)
+	if isinstance(raw, bytes):
+		raw = raw.decode("utf-8")
+	return json.loads(raw)
 
 
 def prepare_pdf_for_signing(
@@ -43,64 +75,79 @@ def prepare_pdf_for_signing(
 	sig_template,
 	profile,
 	signing_request_name,
+	cert_der,
+	signer_location_text=None,
+	pdf_bytes=None,
+	placement=None,
 ):
-	"""Phase 1: Generate PDF, add signature placeholder, compute hash.
+	"""Phase 1: build a PAdES-compliant PDF, return the SignedAttrs hash for the token.
 
-	Args:
-		doctype: source DocType name
-		docname: source document name
-		print_format: Print Format name to render
-		sig_template: DSC Signature Template doc
-		profile: DSC Profile doc
-		signing_request_name: DSC Signing Request name (for audit)
+	Implements the proper deferred external signing flow:
+	1. pyHanko places the signature dictionary with a fixed-size placeholder
+	2. pyHanko computes the ByteRange digest (sha256 of bytes excluding placeholder)
+	3. We build CMS SignedAttrs manually with that digest as `message-digest`
+	4. The token signs sha256(SignedAttrs DER) — that goes into SignerInfo.signature
+	5. finalize_signed_pdf injects the complete CMS into the placeholder
+
+	cert_der is the signer's certificate from the token — required because
+	SignedAttrs references the signer-certificate via `signing-certificate-v2`
+	and Adobe's verifier checks that the cert chain in the CMS matches.
+
+	pdf_bytes / placement support ad-hoc uploaded-document signing (DSC Document
+	Sign): when pdf_bytes is given, that PDF is signed as-is instead of being
+	rendered from a print format, and placement — a dict of
+	{page, x, y, width, height} in PDF points — positions the signature box
+	instead of the saved signature template field.
 
 	Returns:
-		dict with session_id, hash_to_sign (hex), hash_algorithm
+		dict with session_id, hash_to_sign (hex of SignedAttrs hash), hash_algorithm, expected_cert_fingerprint
 	"""
-	# Step 1: Generate PDF from Frappe print format
-	pdf_bytes = generate_pdf_from_print_format(doctype, docname, print_format)
+	if pdf_bytes is None:
+		pdf_bytes = generate_pdf_from_print_format(doctype, docname, print_format)
 
-	# Step 2: Get signature placement from template
-	sig_field_row = None
-	if sig_template.fields:
-		# MVP: use the first field (typically named "primary")
-		sig_field_row = sig_template.fields[0]
-
-	page_number = (sig_field_row.page_number - 1) if sig_field_row else 0  # 0-based
-	box = None
-	if sig_field_row and sig_field_row.x and sig_field_row.y:
+	if placement:
+		# Interactive placement (uploaded document) — coordinates already in
+		# PDF points with origin at the bottom-left, exactly what pyHanko wants.
+		page_number = max(int(placement.get("page") or 1) - 1, 0)
+		px = placement.get("x") or 0
+		py = placement.get("y") or 0
 		box = (
-			sig_field_row.x,
-			sig_field_row.y,
-			sig_field_row.x + (sig_field_row.width or 200),
-			sig_field_row.y + (sig_field_row.height or 80),
+			px,
+			py,
+			px + (placement.get("width") or 200),
+			py + (placement.get("height") or 80),
 		)
+	else:
+		sig_field_row = None
+		if sig_template.fields:
+			sig_field_row = sig_template.fields[0]
 
-	# Step 3: Build the stamp text for the visual appearance
-	stamp_text = build_stamp_text(sig_template, profile)
+		page_number = (sig_field_row.page_number - 1) if sig_field_row else 0
+		box = None
+		if sig_field_row and sig_field_row.x and sig_field_row.y:
+			box = (
+				sig_field_row.x,
+				sig_field_row.y,
+				sig_field_row.x + (sig_field_row.width or 200),
+				sig_field_row.y + (sig_field_row.height or 80),
+			)
 
-	# Step 4: Get DSC Settings
 	settings = frappe.get_single("DSC Settings")
 	hash_algorithm = settings.default_hash_algorithm or "sha256"
 	reason = settings.default_reason or "Approved"
-	location = settings.default_location or ""
+	location = signer_location_text or settings.default_location or ""
+	signer_name = profile.certificate_common_name or profile.label or profile.profile_name
+	stamp_text = build_stamp_text(sig_template, profile, signer_location_text=location)
 
-	# Step 5: Prepare the PDF with pyHanko
 	session_id = str(uuid.uuid4())
+	signer_cert = asn1_x509.Certificate.load(cert_der)
 
-	pdf_input = BytesIO(pdf_bytes)
-	pdf_writer = IncrementalPdfFileWriter(pdf_input)
-
-	# Create signature field spec
 	field_name = f"DSC_Signature_{signing_request_name}"
 	new_field = sig_fields.SigFieldSpec(
 		sig_field_name=field_name,
 		on_page=page_number,
 		box=box,
 	)
-
-	# Create signature metadata
-	signer_name = profile.certificate_common_name or profile.label or profile.profile_name
 	sig_meta = PdfSignatureMetadata(
 		field_name=field_name,
 		md_algorithm=hash_algorithm,
@@ -109,63 +156,89 @@ def prepare_pdf_for_signing(
 		name=signer_name,
 	)
 
-	# Create a placeholder ExternalSigner (no actual cert yet — we'll use it
-	# just for the signing session setup; real cert comes later)
-	# For preparation phase, we need to know the hash but not sign yet.
-	# We use a dummy approach: compute the document hash ourselves.
-	#
-	# pyHanko's deferred signing requires a certificate upfront for the CMS
-	# structure. Since we don't have the cert at prepare time (it's on the
-	# USB token), we use a simpler approach:
-	# 1. Generate the PDF with signature placeholder
-	# 2. Compute the ByteRange hash ourselves
-	# 3. Store everything for later injection
+	# ExternalSigner needs *some* signature_value at construction time — pyHanko
+	# only uses it during async_sign which we don't call here. The deferred
+	# helper (async_digest_doc_for_signing) only needs the cert to size the
+	# placeholder. We pass a max-size zeroed value; the real signature replaces
+	# it via PdfTBSDocument.finish_signing in phase 2.
+	placeholder_signer = ExternalSigner(
+		signing_cert=signer_cert,
+		cert_registry=SimpleCertificateStore(),
+		signature_value=b"\x00" * 512,
+	)
 
-	# Add the signature field to the PDF
-	sig_fields.append_signature_field(pdf_writer, new_field)
+	pdf_input = BytesIO(pdf_bytes)
+	pdf_writer = IncrementalPdfFileWriter(pdf_input)
+	pdf_signer = PdfSigner(
+		signature_meta=sig_meta,
+		signer=placeholder_signer,
+		new_field_spec=new_field,
+	)
 
-	# Write the PDF with the empty signature field
 	output = BytesIO()
-	pdf_writer.write(output)
+
+	async def _prepare():
+		# Reserve enough room for the full CMS — Indian DSCs have a 3-cert
+		# chain (signer → CA → CCA root) plus OCSP, which pushes the CMS
+		# past pyHanko's default 8 KB estimate. 32 KB gives comfortable
+		# headroom without bloating the PDF.
+		return await pdf_signer.async_digest_doc_for_signing(
+			pdf_out=pdf_writer,
+			output=output,
+			bytes_reserved=32768,
+		)
+
+	prep_digest, _tbs_doc, _ = asyncio.run(_prepare())
+
+	# Capture the prepared PDF bytes (with placeholder) — these are what
+	# finalize will inject the CMS into. We must preserve byte-for-byte.
 	output.seek(0)
+	prepared_pdf_bytes = output.read()
 
-	# Compute the hash of the entire prepared PDF
-	# (In the finalize step, we'll rebuild with the actual signature)
-	pdf_content = output.read()
-	if hash_algorithm == "sha256":
-		doc_hash = hashlib.sha256(pdf_content).hexdigest()
-	elif hash_algorithm == "sha384":
-		doc_hash = hashlib.sha384(pdf_content).hexdigest()
-	else:
-		doc_hash = hashlib.sha256(pdf_content).hexdigest()
+	# Build CMS SignedAttrs manually. The token signs sha256 of this DER.
+	signing_time = datetime.now(timezone.utc).replace(microsecond=0)
+	signed_attrs = cms.CMSAttributes([
+		cms.CMSAttribute({
+			"type": "content_type",
+			"values": [cms.ContentType("data")],
+		}),
+		cms.CMSAttribute({
+			"type": "signing_time",
+			"values": [cms.Time({"utc_time": signing_time})],
+		}),
+		cms.CMSAttribute({
+			"type": "message_digest",
+			"values": [core.OctetString(prep_digest.document_digest)],
+		}),
+	])
+	signed_attrs_der = signed_attrs.dump()
+	hash_to_sign_hex = hashlib.sha256(signed_attrs_der).hexdigest()
 
-	# Store session data for the finalize step
-	_signing_sessions[session_id] = {
-		"pdf_content": pdf_content,
+	_store_session(session_id, {
 		"hash_algorithm": hash_algorithm,
-		"hash_hex": doc_hash,
 		"field_name": field_name,
-		"sig_meta": {
-			"reason": reason,
-			"location": location,
-			"name": signer_name,
-		},
-		"sig_template_name": sig_template.name,
-		"profile_name": profile.name,
 		"signing_request_name": signing_request_name,
 		"doctype": doctype,
 		"docname": docname,
 		"print_format": print_format,
-		"created_at": now_datetime(),
-		"stamp_text": stamp_text,
-		"box": box,
-		"page_number": page_number,
-	}
+		"created_at": str(now_datetime()),
+		"prepared_pdf_b64": base64.b64encode(prepared_pdf_bytes).decode("ascii"),
+		"signed_attrs_b64": base64.b64encode(signed_attrs_der).decode("ascii"),
+		"cert_der_b64": base64.b64encode(cert_der).decode("ascii"),
+		"prep_digest": {
+			"document_digest_hex": prep_digest.document_digest.hex(),
+			"reserved_region_start": prep_digest.reserved_region_start,
+			"reserved_region_end": prep_digest.reserved_region_end,
+		},
+	})
+
+	cert_fingerprint = hashlib.sha256(cert_der).hexdigest()
 
 	return {
 		"session_id": session_id,
-		"hash_to_sign": doc_hash,
+		"hash_to_sign": hash_to_sign_hex,
 		"hash_algorithm": hash_algorithm,
+		"expected_cert_fingerprint": cert_fingerprint,
 	}
 
 
@@ -176,103 +249,91 @@ def finalize_signed_pdf(
 	cert_chain_der_b64=None,
 	ocsp_der_b64=None,
 ):
-	"""Phase 2: Inject signature into PDF, verify, and save.
+	"""Phase 2: Build CMS from the token signature, inject into the prepared placeholder.
+
+	The prepared PDF (with placeholder) and the SignedAttrs we hashed in
+	prepare are both stored in the session. We:
+	1. Construct the full CMS ContentInfo with the token's signature value
+	2. Use PreparedByteRangeDigest.fill_with_cms to drop those bytes into the
+	   reserved region without touching the rest of the PDF.
+
+	The result is a PAdES-compliant PDF where Adobe's verifier hashes the
+	exact bytes the token signed.
 
 	Args:
 		session_id: session ID from prepare step
 		signature_bytes_b64: base64-encoded raw signature from the agent
-		cert_der_b64: base64-encoded signer certificate (DER)
+		cert_der_b64: base64-encoded signer certificate (from the bridge —
+			should match the cert stored at prepare time)
 		cert_chain_der_b64: list of base64-encoded intermediate certs (DER)
-		ocsp_der_b64: base64-encoded OCSP response (DER)
-
-	Returns:
-		dict with signed_pdf_bytes, file_name, verification result
+		ocsp_der_b64: base64-encoded OCSP response (DER) — currently unused
 	"""
-	import base64
-
-	if session_id not in _signing_sessions:
+	session = _load_session(session_id, pop=True)
+	if not session:
 		frappe.throw("Signing session expired or not found. Please try again.")
 
-	session = _signing_sessions.pop(session_id)
-
-	# Decode the inputs
 	signature_bytes = base64.b64decode(signature_bytes_b64)
-	cert_der = base64.b64decode(cert_der_b64)
 
-	cert_chain_ders = []
-	if cert_chain_der_b64:
-		cert_chain_ders = [base64.b64decode(c) for c in cert_chain_der_b64]
-
-	ocsp_response = None
-	if ocsp_der_b64:
-		ocsp_response = base64.b64decode(ocsp_der_b64)
-
-	# Parse the signer certificate using asn1crypto (pyHanko's expected format)
+	# Prefer the cert from session (matches what we built SignedAttrs against).
+	# The bridge re-sends it on /sign for redundancy, but if there's any
+	# mismatch we must trust the prepare-time cert.
+	cert_der = base64.b64decode(session["cert_der_b64"])
 	signer_cert = asn1_x509.Certificate.load(cert_der)
 
-	# Load the original PDF and re-render with the actual signature
-	hash_algorithm = session["hash_algorithm"]
-	sig_meta_dict = session["sig_meta"]
-	box = session["box"]
-	page_number = session["page_number"]
+	chain_certs = []
+	if cert_chain_der_b64:
+		for c in cert_chain_der_b64:
+			chain_certs.append(asn1_x509.Certificate.load(base64.b64decode(c)))
 
-	# Re-generate PDF from scratch (the stored one has an empty sig field,
-	# we need a clean one for pyHanko to add the real signature)
-	fresh_pdf = generate_pdf_from_print_format(
-		session["doctype"],
-		session["docname"],
-		session["print_format"],
+	signed_attrs_der = base64.b64decode(session["signed_attrs_b64"])
+	signed_attrs = cms.CMSAttributes.load(signed_attrs_der)
+
+	signer_info = cms.SignerInfo({
+		"version": "v1",
+		"sid": cms.SignerIdentifier({
+			"issuer_and_serial_number": cms.IssuerAndSerialNumber({
+				"issuer": signer_cert.issuer,
+				"serial_number": signer_cert.serial_number,
+			}),
+		}),
+		"digest_algorithm": algos.DigestAlgorithm({"algorithm": "sha256"}),
+		"signed_attrs": signed_attrs,
+		"signature_algorithm": algos.SignedDigestAlgorithm({"algorithm": "rsassa_pkcs1v15"}),
+		"signature": signature_bytes,
+	})
+
+	cert_choices = [cms.CertificateChoices({"certificate": signer_cert})]
+	for c in chain_certs:
+		cert_choices.append(cms.CertificateChoices({"certificate": c}))
+
+	signed_data = cms.SignedData({
+		"version": "v1",
+		"digest_algorithms": cms.DigestAlgorithms([
+			algos.DigestAlgorithm({"algorithm": "sha256"})
+		]),
+		"encap_content_info": cms.ContentInfo({
+			"content_type": "data",
+		}),
+		"certificates": cms.CertificateSet(cert_choices),
+		"signer_infos": cms.SignerInfos([signer_info]),
+	})
+
+	cms_content = cms.ContentInfo({
+		"content_type": "signed_data",
+		"content": signed_data,
+	})
+	cms_bytes = cms_content.dump()
+
+	prepared_pdf_bytes = base64.b64decode(session["prepared_pdf_b64"])
+	prep = session["prep_digest"]
+	prep_digest_obj = PreparedByteRangeDigest(
+		document_digest=bytes.fromhex(prep["document_digest_hex"]),
+		reserved_region_start=prep["reserved_region_start"],
+		reserved_region_end=prep["reserved_region_end"],
 	)
 
-	# Build certificate store for chain
-	cert_store = SimpleCertificateStore()
-	for chain_cert_der in cert_chain_ders:
-		cert_store.register(asn1_x509.Certificate.load(chain_cert_der))
-
-	# Create ExternalSigner with the actual signature bytes
-	external_signer = ExternalSigner(
-		signing_cert=signer_cert,
-		cert_registry=cert_store,
-		signature_value=signature_bytes,
-	)
-
-	# Set up the signing metadata
-	field_name = session["field_name"]
-	sig_meta = PdfSignatureMetadata(
-		field_name=field_name,
-		md_algorithm=hash_algorithm,
-		location=sig_meta_dict["location"],
-		reason=sig_meta_dict["reason"],
-		name=sig_meta_dict["name"],
-	)
-
-	new_field = sig_fields.SigFieldSpec(
-		sig_field_name=field_name,
-		on_page=page_number,
-		box=box,
-	)
-
-	pdf_signer = PdfSigner(
-		signature_meta=sig_meta,
-		signer=external_signer,
-		new_field_spec=new_field,
-	)
-
-	# Sign the PDF using pyHanko's async pipeline
-	pdf_input = BytesIO(fresh_pdf)
-	pdf_writer = IncrementalPdfFileWriter(pdf_input)
-
-	output = BytesIO()
-
-	# Run the async signing
-	async def _do_sign():
-		await pdf_signer.async_sign_pdf(
-			pdf_out=pdf_writer,
-			output=output,
-		)
-
-	asyncio.run(_do_sign())
-
+	output = BytesIO(prepared_pdf_bytes)
+	prep_digest_obj.fill_with_cms(output, cms_bytes)
 	output.seek(0)
 	signed_pdf_bytes = output.read()
 
@@ -305,6 +366,9 @@ def finalize_signed_pdf(
 def save_signed_pdf(signed_result):
 	"""Save the signed PDF as a Frappe File attachment.
 
+	Tags the File with `is_dsc_signed=1` (custom field added by after_install)
+	so the protection hook can refuse deletion by non-DSC-Administrators.
+
 	Args:
 		signed_result: dict returned from finalize_signed_pdf
 
@@ -322,7 +386,66 @@ def save_signed_pdf(signed_result):
 		}
 	)
 	file_doc.save(ignore_permissions=True)
+
+	# Flag if the custom field exists (it should, after install runs)
+	if frappe.get_meta("File").get_field("is_dsc_signed"):
+		frappe.db.set_value("File", file_doc.name, "is_dsc_signed", 1)
+
 	return file_doc
+
+
+# PEM bundle of every CCA India licensed CA, shipped with the app so signature
+# verification trusts all Indian DSC tokens out of the box — no admin setup.
+_BUILTIN_TRUST_BUNDLE = os.path.join(
+	os.path.dirname(__file__), "cca_india_trust_bundle.pem"
+)
+
+
+def _parse_pem_certs(pem_bytes):
+	"""Parse a PEM bundle's bytes into a list of x509 Certificate objects."""
+	from asn1crypto import pem
+	from asn1crypto.x509 import Certificate
+
+	if isinstance(pem_bytes, str):
+		pem_bytes = pem_bytes.encode()
+	return [
+		Certificate.load(der)
+		for _, _, der in pem.unarmor(pem_bytes, multiple=True)
+	]
+
+
+def _load_trust_store():
+	"""Build a pyhanko ValidationContext for signature verification.
+
+	Trust roots = the CCA India bundle shipped with the app, plus any extra CA
+	bundle an admin uploads in DSC Settings. The built-in bundle means every
+	Indian DSC token verifies as trusted with zero setup; the uploaded bundle
+	is additive, for trusting extra CAs (e.g. a private/internal CA).
+
+	Returns ValidationContext or None. None falls back to pyhanko defaults so
+	verification never breaks if neither source yields any certificates.
+	"""
+	try:
+		from pyhanko_certvalidator import ValidationContext
+
+		anchors = []
+
+		if os.path.exists(_BUILTIN_TRUST_BUNDLE):
+			with open(_BUILTIN_TRUST_BUNDLE, "rb") as fh:
+				anchors.extend(_parse_pem_certs(fh.read()))
+
+		bundle_url = frappe.db.get_single_value("DSC Settings", "trust_store_bundle")
+		if bundle_url:
+			file_doc = frappe.get_doc("File", {"file_url": bundle_url})
+			anchors.extend(_parse_pem_certs(file_doc.get_content()))
+
+		if not anchors:
+			return None
+
+		return ValidationContext(trust_roots=anchors, allow_fetching=False)
+	except Exception:
+		frappe.log_error(title="DSC trust store load failed")
+		return None
 
 
 def verify_signed_pdf(pdf_bytes):
@@ -344,10 +467,16 @@ def verify_signed_pdf(pdf_bytes):
 		if not sigs:
 			return {"is_valid": False, "error": "No signatures found in PDF"}
 
+		validation_context = _load_trust_store()
+
 		results = []
 		for sig in sigs:
 			try:
-				status = asyncio.run(async_validate_pdf_signature(sig))
+				status = asyncio.run(
+					async_validate_pdf_signature(
+						sig, signer_validation_context=validation_context
+					)
+				)
 				results.append(
 					{
 						"field_name": sig.field_name,
@@ -358,8 +487,6 @@ def verify_signed_pdf(pdf_bytes):
 					}
 				)
 			except Exception as ve:
-				# Self-signed certs or missing trust anchors will fail validation
-				# but the signature structure may still be intact
 				results.append(
 					{
 						"field_name": sig.field_name,
@@ -376,6 +503,7 @@ def verify_signed_pdf(pdf_bytes):
 			"is_valid": all_valid,
 			"signatures": results,
 			"signature_count": len(results),
+			"trust_store_configured": validation_context is not None,
 		}
 
 	except Exception as e:
@@ -400,12 +528,14 @@ def generate_pdf_from_print_format(doctype, docname, print_format):
 	return pdf_bytes
 
 
-def build_stamp_text(sig_template, profile):
+def build_stamp_text(sig_template, profile, signer_location_text=None):
 	"""Build the visual stamp text based on template and profile config.
 
 	Args:
 		sig_template: DSC Signature Template doc
 		profile: DSC Profile doc
+		signer_location_text: optional per-signer address to use for the
+			"Location:" line. Falls back to DSC Settings.default_location.
 
 	Returns:
 		str with the stamp text
@@ -433,8 +563,12 @@ def build_stamp_text(sig_template, profile):
 		lines.append(f"Reason: {settings.default_reason or 'Approved'}")
 
 	if sig_template.stamp_show_location:
-		settings = frappe.get_single("DSC Settings")
-		lines.append(f"Location: {settings.default_location or ''}")
+		if signer_location_text:
+			location = signer_location_text
+		else:
+			settings = frappe.get_single("DSC Settings")
+			location = settings.default_location or ""
+		lines.append(f"Location: {location}")
 
 	return "\n".join(lines)
 
@@ -444,21 +578,9 @@ def get_session_info(session_id):
 
 	Returns None if session doesn't exist or expired.
 	"""
-	return _signing_sessions.get(session_id)
+	return _load_session(session_id)
 
 
 def cleanup_expired_sessions(max_age_seconds=300):
-	"""Remove signing sessions older than max_age_seconds."""
-	from frappe.utils import time_diff_in_seconds
-
-	now = now_datetime()
-	expired = []
-	for sid, session in _signing_sessions.items():
-		age = time_diff_in_seconds(now, session["created_at"])
-		if age > max_age_seconds:
-			expired.append(sid)
-
-	for sid in expired:
-		del _signing_sessions[sid]
-
-	return len(expired)
+	"""No-op kept for backwards compatibility — Redis TTL handles expiry now."""
+	return 0

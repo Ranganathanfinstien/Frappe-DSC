@@ -38,6 +38,24 @@ def request_has_permission(doc, ptype, user):
 	return False
 
 
+def request_query_conditions(user=None):
+	"""List-view filter for DSC Signing Request.
+
+	Returns a SQL WHERE fragment so a user only sees signing requests
+	where they are the expected or actual signer. Admins and auditors
+	bypass the filter.
+	"""
+	if not user:
+		user = frappe.session.user
+
+	roles = frappe.get_roles(user)
+	if "DSC Administrator" in roles or "System Manager" in roles or "DSC Auditor" in roles:
+		return ""
+
+	escaped = frappe.db.escape(user)
+	return f"(`tabDSC Signing Request`.`expected_signer_user` = {escaped} OR `tabDSC Signing Request`.`actual_signer_user` = {escaped})"
+
+
 def profile_has_permission(doc, ptype, user):
 	"""Permission check for DSC Profile.
 

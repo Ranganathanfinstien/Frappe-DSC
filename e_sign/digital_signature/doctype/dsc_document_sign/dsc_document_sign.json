@@ -1,0 +1,205 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-05-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "document_section",
+  "title",
+  "naming_series",
+  "uploaded_pdf",
+  "column_break_doc",
+  "profile",
+  "signature_template",
+  "placement_section",
+  "placement_viewer",
+  "sig_page",
+  "sig_x",
+  "sig_y",
+  "column_break_placement",
+  "sig_width",
+  "sig_height",
+  "status_section",
+  "status",
+  "column_break_status",
+  "signing_request",
+  "signed_file"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_section",
+   "fieldtype": "Section Break",
+   "label": "Document"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "default": "DOC-SIGN-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "DOC-SIGN-.#####"
+  },
+  {
+   "description": "Upload the PDF document you want to sign with your DSC token.",
+   "fieldname": "uploaded_pdf",
+   "fieldtype": "Attach",
+   "label": "PDF to Sign",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_doc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The DSC Profile whose token will sign this document.",
+   "fieldname": "profile",
+   "fieldtype": "Link",
+   "label": "Signing Profile (DSC Token)",
+   "options": "DSC Profile",
+   "reqd": 1
+  },
+  {
+   "description": "Optional. Controls the visible stamp content. Leave blank for the default stamp.",
+   "fieldname": "signature_template",
+   "fieldtype": "Link",
+   "label": "Signature Template",
+   "options": "DSC Signature Template"
+  },
+  {
+   "fieldname": "placement_section",
+   "fieldtype": "Section Break",
+   "label": "Signature Placement"
+  },
+  {
+   "fieldname": "placement_viewer",
+   "fieldtype": "HTML",
+   "label": "Place Your Signature"
+  },
+  {
+   "default": "1",
+   "description": "Set automatically when you place the box on the preview above.",
+   "fieldname": "sig_page",
+   "fieldtype": "Int",
+   "label": "Page",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sig_x",
+   "fieldtype": "Float",
+   "label": "X (pts from left)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sig_y",
+   "fieldtype": "Float",
+   "label": "Y (pts from bottom)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_placement",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sig_width",
+   "fieldtype": "Float",
+   "label": "Width (pts)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sig_height",
+   "fieldtype": "Float",
+   "label": "Height (pts)",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nPending\nIn Progress\nSigned\nFailed\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signing_request",
+   "fieldtype": "Link",
+   "label": "DSC Signing Request",
+   "options": "DSC Signing Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signed_file",
+   "fieldtype": "Link",
+   "label": "Signed PDF",
+   "options": "File",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-16 13:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Digital signature",
+ "name": "DSC Document Sign",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "DSC Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "DSC Signer",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "DSC Auditor"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1
+}

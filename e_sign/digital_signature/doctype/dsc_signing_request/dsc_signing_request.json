@@ -40,7 +40,14 @@
   "client_section",
   "client_ip",
   "column_break_client",
-  "client_user_agent"
+  "client_user_agent",
+  "signer_location_section",
+  "signer_lat",
+  "signer_lng",
+  "signer_accuracy_m",
+  "column_break_signer_location",
+  "signer_address",
+  "signer_location_provider"
  ],
  "fields": [
   {
@@ -257,6 +264,48 @@
    "fieldname": "client_user_agent",
    "fieldtype": "Small Text",
    "label": "Client User Agent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signer_location_section",
+   "fieldtype": "Section Break",
+   "label": "Signer Location",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "signer_lat",
+   "fieldtype": "Float",
+   "label": "Signer Latitude",
+   "precision": "7",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signer_lng",
+   "fieldtype": "Float",
+   "label": "Signer Longitude",
+   "precision": "7",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signer_accuracy_m",
+   "fieldtype": "Float",
+   "label": "Accuracy (meters)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_signer_location",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signer_address",
+   "fieldtype": "Small Text",
+   "label": "Signer Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signer_location_provider",
+   "fieldtype": "Data",
+   "label": "Geocoding Provider",
    "read_only": 1
   }
  ],

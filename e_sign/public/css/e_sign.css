@@ -1,0 +1,73 @@
+/* DSC progress dialog stepper */
+.dsc-steps {
+	list-style: none;
+	padding: 0;
+	margin: 0 0 12px 0;
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+.dsc-steps li {
+	flex: 1 1 auto;
+	min-width: 100px;
+	font-size: 11px;
+	padding: 6px 8px;
+	border-radius: 4px;
+	background: var(--bg-light-gray, #f3f3f3);
+	color: var(--text-muted, #888);
+	border: 1px solid transparent;
+}
+.dsc-steps li.step-done {
+	background: var(--alert-bg-success, #e6fbe6);
+	color: var(--green-600, #2e7d32);
+}
+.dsc-steps li.step-active {
+	background: var(--alert-bg-info, #e3f2fd);
+	color: var(--blue-700, #1565c0);
+	border-color: var(--blue-300, #64b5f6);
+	font-weight: 600;
+}
+.dsc-steps li.step-pending {
+	background: var(--bg-light-gray, #f3f3f3);
+	color: var(--text-muted, #999);
+}
+
+.dsc-message {
+	padding: 8px 0;
+	min-height: 36px;
+	line-height: 1.4;
+}
+
+/* DSC pairing code box */
+.dsc-pairing-code {
+	display: inline-block;
+	padding: 12px 24px;
+	font-family: var(--font-stack-monospace, monospace);
+	font-size: 24px;
+	letter-spacing: 4px;
+	background: var(--bg-light-gray, #f3f3f3);
+	border: 2px dashed var(--border-color, #ccc);
+	border-radius: 6px;
+	user-select: all;
+	margin: 8px 0;
+}
+
+/* Signature template coordinate preview */
+.dsc-coord-preview {
+	position: relative;
+	width: 200px;
+	height: 260px; /* roughly Letter aspect ratio */
+	border: 1px solid var(--border-color, #ccc);
+	background: #fafafa;
+	margin: 8px 0;
+}
+.dsc-coord-preview .stamp {
+	position: absolute;
+	background: rgba(33, 150, 243, 0.25);
+	border: 1px solid #1976d2;
+	font-size: 9px;
+	padding: 2px;
+	color: #0d47a1;
+	overflow: hidden;
+	white-space: nowrap;
+}

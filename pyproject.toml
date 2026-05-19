@@ -10,6 +10,7 @@ dynamic = ["version"]
 dependencies = [
     # "frappe~=15.0.0" # Installed and managed by bench.
     "pyhanko[image-support]",
+    "asn1crypto",
 ]
 
 [build-system]

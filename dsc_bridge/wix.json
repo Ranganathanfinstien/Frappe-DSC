@@ -29,26 +29,26 @@
   "hooks": [
     {
       "when": "install",
-      "command": "sc",
-      "arguments": "create dsc-bridge binPath=\"[INSTALLDIR]dsc-bridge.exe\" start=auto DisplayName=\"DSC Bridge Agent\"",
+      "command": "[INSTALLDIR]dsc-bridge.exe",
+      "arguments": "--post-install",
       "elevated": true
     },
     {
       "when": "install",
-      "command": "sc",
-      "arguments": "start dsc-bridge",
-      "elevated": true
+      "command": "[INSTALLDIR]dsc-bridge.exe",
+      "arguments": "",
+      "elevated": false
     },
     {
       "when": "uninstall",
-      "command": "sc",
-      "arguments": "stop dsc-bridge",
-      "elevated": true
+      "command": "taskkill",
+      "arguments": "/F /IM dsc-bridge.exe",
+      "elevated": false
     },
     {
       "when": "uninstall",
-      "command": "sc",
-      "arguments": "delete dsc-bridge",
+      "command": "[INSTALLDIR]dsc-bridge.exe",
+      "arguments": "--pre-uninstall",
       "elevated": true
     }
   ],

@@ -2,7 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+
+	"github.com/miekg/pkcs11"
 )
 
 // Error codes returned by the agent.
@@ -80,4 +83,38 @@ func writeErrorMsg(w http.ResponseWriter, code string, msg string, httpStatus in
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
 	json.NewEncoder(w).Encode(resp)
+}
+
+// mapPKCS11Error converts a PKCS#11 error into the agent's domain error code
+// and the appropriate HTTP status. Falls back to INTERNAL_ERROR / 500.
+//
+// Reference: PKCS#11 v2.40 §A "Manifest constants" for CKR_* values.
+func mapPKCS11Error(err error) (code string, httpStatus int) {
+	if err == nil {
+		return ErrInternalError, http.StatusInternalServerError
+	}
+
+	var p11Err pkcs11.Error
+	if !errors.As(err, &p11Err) {
+		return ErrInternalError, http.StatusInternalServerError
+	}
+
+	switch uint(p11Err) {
+	case pkcs11.CKR_PIN_INCORRECT:
+		return ErrPINIncorrect, http.StatusUnauthorized
+	case pkcs11.CKR_PIN_LOCKED:
+		return ErrPINLocked, http.StatusForbidden
+	case pkcs11.CKR_PIN_INVALID, pkcs11.CKR_PIN_LEN_RANGE:
+		return ErrPINIncorrect, http.StatusUnauthorized
+	case pkcs11.CKR_FUNCTION_CANCELED:
+		return ErrPINCancelled, http.StatusBadRequest
+	case pkcs11.CKR_TOKEN_NOT_PRESENT, pkcs11.CKR_TOKEN_NOT_RECOGNIZED, pkcs11.CKR_DEVICE_REMOVED:
+		return ErrTokenNotFound, http.StatusNotFound
+	case pkcs11.CKR_MECHANISM_INVALID, pkcs11.CKR_MECHANISM_PARAM_INVALID:
+		return ErrUnsupportedAlgo, http.StatusBadRequest
+	case pkcs11.CKR_KEY_HANDLE_INVALID, pkcs11.CKR_OBJECT_HANDLE_INVALID:
+		return ErrCertNotFound, http.StatusNotFound
+	default:
+		return ErrInternalError, http.StatusInternalServerError
+	}
 }

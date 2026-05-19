@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -31,7 +32,8 @@ type CertInfo struct {
 	KeyUsage          []string `json:"key_usage"`
 	Slot              uint     `json:"slot"`
 	TokenSerial       string   `json:"token_serial"`
-	derBytes          []byte   // raw DER, not exported to JSON
+	CertDERBase64     string   `json:"cert_der_b64"` // base64-encoded raw DER cert
+	derBytes          []byte   `json:"-"`            // raw DER, kept for internal signing use
 }
 
 // PKCS11Handler manages PKCS#11 library loading and token operations.
@@ -49,11 +51,13 @@ func NewPKCS11Handler(libPaths []string) *PKCS11Handler {
 
 	for _, libPath := range libPaths {
 		if _, err := os.Stat(libPath); err != nil {
-			continue // library not installed
+			continue // library not installed at this path
 		}
+		log.Printf("pkcs11: found candidate %s, attempting load", libPath)
 
 		ctx := pkcs11.New(libPath)
 		if ctx == nil {
+			log.Printf("pkcs11: pkcs11.New returned nil for %s (likely missing dependency DLL or wrong architecture)", libPath)
 			continue
 		}
 
@@ -67,6 +71,7 @@ func NewPKCS11Handler(libPaths []string) *PKCS11Handler {
 		h.loadedLibs = append(h.loadedLibs, libPath)
 		log.Printf("pkcs11: loaded %s", libPath)
 	}
+	log.Printf("pkcs11: %d library/libraries loaded out of %d candidate paths", len(h.loadedLibs), len(libPaths))
 
 	return h
 }
@@ -192,6 +197,7 @@ func (h *PKCS11Handler) readCertsFromSession(ctx *pkcs11.Ctx, session pkcs11.Ses
 				KeyUsage:          parseKeyUsage(parsed.KeyUsage),
 				Slot:              slot,
 				TokenSerial:       tokenSerial,
+				CertDERBase64:     base64.StdEncoding.EncodeToString(certDER),
 				derBytes:          certDER,
 			}
 
@@ -271,16 +277,37 @@ func (h *PKCS11Handler) SignHash(ctx *pkcs11.Ctx, slot uint, fingerprint string,
 
 	privKey := objs[0]
 
-	// Sign with RSA PKCS#1 v1.5
-	mechanism := []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil)}
+	// Detect key type: RSA → CKM_RSA_PKCS with DigestInfo wrapper;
+	// EC → CKM_ECDSA over the raw hash (no DigestInfo) per PRD §F5.11.
+	keyTypeAttr, err := ctx.GetAttributeValue(session, privKey, []*pkcs11.Attribute{
+		pkcs11.NewAttribute(pkcs11.CKA_KEY_TYPE, nil),
+	})
+	if err != nil || len(keyTypeAttr) == 0 || len(keyTypeAttr[0].Value) == 0 {
+		return nil, nil, fmt.Errorf("could not read CKA_KEY_TYPE: %w", err)
+	}
+	keyType := uint(keyTypeAttr[0].Value[0])
+
+	var mechanism []*pkcs11.Mechanism
+	var dataToSign []byte
+	switch keyType {
+	case pkcs11.CKK_RSA:
+		mechanism = []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil)}
+		// RSA PKCS#1 v1.5 expects DigestInfo(hash)
+		dataToSign = append(sha256DigestInfoPrefix(), hashBytes...)
+	case pkcs11.CKK_EC: // CKK_ECDSA is an alias for CKK_EC in the PKCS#11 spec
+		// ECDSA signs the raw hash; the token returns r||s concatenation (PKCS#11 spec).
+		// pyHanko's CMS layer expects this raw concatenation form too.
+		mechanism = []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_ECDSA, nil)}
+		dataToSign = hashBytes
+	default:
+		return nil, nil, fmt.Errorf("unsupported CKA_KEY_TYPE 0x%x — only RSA and ECDSA supported", keyType)
+	}
+
 	if err := ctx.SignInit(session, mechanism, privKey); err != nil {
 		return nil, nil, fmt.Errorf("sign init: %w", err)
 	}
 
-	// Prepend DigestInfo for SHA-256 (DER-encoded AlgorithmIdentifier + hash)
-	digestInfo := append(sha256DigestInfoPrefix(), hashBytes...)
-
-	sig, err := ctx.Sign(session, digestInfo)
+	sig, err := ctx.Sign(session, dataToSign)
 	if err != nil {
 		return nil, nil, fmt.Errorf("sign: %w", err)
 	}

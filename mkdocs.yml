@@ -1,0 +1,48 @@
+# MkDocs configuration for the e_sign documentation site.
+# This file is documentation tooling only — Frappe ignores it and the app's
+# behaviour is unaffected.
+#
+# Preview locally:
+#   pip install mkdocs-material
+#   mkdocs serve
+# Build a static site:
+#   mkdocs build      # outputs to ./site
+
+site_name: Digital Signature (e_sign)
+site_description: DSC digital signing platform for Frappe & ERPNext
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.highlight
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Getting Started: getting-started.md
+  - Concepts & Doctypes: concepts.md
+  - Bridge Agent: bridge-agent.md
+  - Signing Rules: signing-rules.md
+  - Sign a Document: document-sign.md
+  - Signature Templates: signature-templates.md
+  - Trust Store: trust-store.md
+  - Settings: settings.md
+  - Audit & Reports: audit-and-reports.md
+  - FAQ: faq.md
+</content>

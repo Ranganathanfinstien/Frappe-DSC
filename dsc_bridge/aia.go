@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,7 +110,10 @@ func EncodeCertChainB64(chain [][]byte) []string {
 	return result
 }
 
-// fetchDER downloads a DER-encoded certificate from a URL.
+// fetchDER downloads a certificate from a URL. AIA endpoints in the wild
+// serve either raw DER or PEM (e-Mudhra serves PEM). We detect PEM by the
+// "-----BEGIN" header and decode to DER; otherwise the bytes are assumed
+// already DER.
 func fetchDER(url string) ([]byte, error) {
 	client := &http.Client{Timeout: aiaHTTPTimeout}
 	resp, err := client.Get(url)
@@ -121,7 +126,19 @@ func fetchDER(url string) ([]byte, error) {
 		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
 	}
 
-	return io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if bytes.HasPrefix(bytes.TrimSpace(body), []byte("-----BEGIN")) {
+		block, _ := pem.Decode(body)
+		if block == nil {
+			return nil, fmt.Errorf("failed to decode PEM from %s", url)
+		}
+		return block.Bytes, nil
+	}
+	return body, nil
 }
 
 // buildOCSPRequest creates a minimal DER-encoded OCSP request.

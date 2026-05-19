@@ -1,0 +1,126 @@
+name: Build dsc-bridge (all platforms)
+
+# Builds the dsc-bridge Go binary for Linux, Windows (x64 + x86), and macOS
+# (Intel + Apple Silicon, plus a universal fat binary). Triggered on:
+#   - push to main / dsc_bridge branches
+#   - tag push (v*) — also creates a Release with binaries attached
+#   - manual dispatch from the Actions UI
+#
+# CGO + PKCS#11 means each OS needs its own native runner — these can't be
+# cross-compiled cleanly.
+
+on:
+  push:
+    branches: [main, dsc_bridge, workspace/*]
+    tags: ["v*"]
+    paths:
+      - "dsc_bridge/**"
+      - ".github/workflows/build-bridge.yml"
+  pull_request:
+    paths:
+      - "dsc_bridge/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to upload Release assets when a tag is pushed
+
+defaults:
+  run:
+    working-directory: dsc_bridge
+
+jobs:
+  # ─── Linux x64 ────────────────────────────────────────────────────────────
+  linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: |
+          go mod tidy
+          CGO_ENABLED=1 go build -ldflags "-s -w" -o build/dsc-bridge .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsc-bridge-linux-amd64
+          path: dsc_bridge/build/dsc-bridge
+
+  # ─── Windows x64 + x86 ────────────────────────────────────────────────────
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [amd64, "386"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build (${{ matrix.arch }})
+        shell: bash
+        run: |
+          go mod tidy
+          OUT="build/dsc-bridge.exe"
+          if [ "${{ matrix.arch }}" = "386" ]; then OUT="build/dsc-bridge-x86.exe"; fi
+          GOARCH=${{ matrix.arch }} CGO_ENABLED=1 \
+            go build -ldflags "-s -w -H windowsgui" -o "$OUT" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsc-bridge-windows-${{ matrix.arch }}
+          path: dsc_bridge/build/dsc-bridge*.exe
+
+  # ─── macOS Intel + Apple Silicon + Universal ──────────────────────────────
+  macos:
+    runs-on: macos-14   # Apple Silicon runner; can build amd64 too via cross
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build darwin/amd64
+        run: |
+          go mod tidy
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 \
+            go build -ldflags "-s -w" -o build/dsc-bridge-darwin-amd64 .
+      - name: Build darwin/arm64
+        run: |
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 \
+            go build -ldflags "-s -w" -o build/dsc-bridge-darwin-arm64 .
+      - name: lipo into universal binary
+        run: |
+          lipo -create \
+            -output build/dsc-bridge-darwin-universal \
+            build/dsc-bridge-darwin-amd64 \
+            build/dsc-bridge-darwin-arm64
+          file build/dsc-bridge-darwin-universal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsc-bridge-macos
+          path: |
+            dsc_bridge/build/dsc-bridge-darwin-amd64
+            dsc_bridge/build/dsc-bridge-darwin-arm64
+            dsc_bridge/build/dsc-bridge-darwin-universal
+
+  # ─── Release (only on tag push) ───────────────────────────────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux-amd64, windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten & rename
+        run: |
+          mkdir -p release
+          cp artifacts/dsc-bridge-linux-amd64/dsc-bridge       release/dsc-bridge-linux-amd64
+          cp artifacts/dsc-bridge-windows-amd64/dsc-bridge.exe release/dsc-bridge-windows-amd64.exe
+          cp artifacts/dsc-bridge-windows-386/dsc-bridge-x86.exe release/dsc-bridge-windows-386.exe
+          cp artifacts/dsc-bridge-macos/dsc-bridge-darwin-amd64    release/
+          cp artifacts/dsc-bridge-macos/dsc-bridge-darwin-arm64    release/
+          cp artifacts/dsc-bridge-macos/dsc-bridge-darwin-universal release/
+          ls -la release/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
