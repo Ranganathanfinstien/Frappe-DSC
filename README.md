@@ -80,13 +80,6 @@ do.
 
 ## Installation
 
-Install with the [bench] CLI:
-
-```bash
-cd $PATH_TO_YOUR_BENCH
-bench get-app $URL_OF_THIS_REPO --branch develop
-bench install-app e_sign
-```
 
 The `after_install` hook adds an `is_dsc_signed` custom field to the **File** doctype
 and ships the `DSC Administrator`, `DSC Signer` and `DSC Auditor` roles as fixtures.
