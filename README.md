@@ -12,22 +12,6 @@ around it.
 
 ---
 
-## Table of contents
-
-- [Features](#features)
-- [How it works](#how-it-works)
-- [Architecture](#architecture)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Quick start](#quick-start)
-- [Doctypes](#doctypes)
-- [Roles](#roles)
-- [Trust store](#trust-store)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [License](#license)
-
----
 
 ## Features
 
