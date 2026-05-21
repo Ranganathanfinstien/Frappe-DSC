@@ -10,8 +10,13 @@ When a DSC Rule has block_print_until_signed=1 for a DocType:
 import frappe
 
 
-def download_pdf(doctype, name, format=None, doc=None, no_letterhead=0, language=None, letterhead=None):
+@frappe.whitelist(allow_guest=True)
+def download_pdf(doctype, name, format=None, doc=None, no_letterhead=0, **kwargs):
 	"""Override of frappe.utils.print_format.download_pdf.
+
+	Uses **kwargs so this override tolerates Frappe upgrades that add new
+	parameters (e.g. pdf_generator, letterhead, language). Forwards everything
+	to the original implementation when no DSC gate applies.
 
 	Checks DSC Rules for the document and either:
 	1. Substitutes the signed PDF if available
@@ -20,7 +25,6 @@ def download_pdf(doctype, name, format=None, doc=None, no_letterhead=0, language
 	"""
 	from frappe.utils.print_format import download_pdf as _original_download_pdf
 
-	# Check if any DSC Rule with block_print_until_signed applies
 	blocking_rule = frappe.db.get_value(
 		"DSC Rule",
 		filters={
@@ -33,13 +37,11 @@ def download_pdf(doctype, name, format=None, doc=None, no_letterhead=0, language
 	)
 
 	if not blocking_rule:
-		# No blocking rule — pass through
 		return _original_download_pdf(
 			doctype, name, format=format, doc=doc,
-			no_letterhead=no_letterhead, language=language, letterhead=letterhead,
+			no_letterhead=no_letterhead, **kwargs,
 		)
 
-	# Check if a signed PDF exists for this document
 	signed_request = frappe.db.get_value(
 		"DSC Signing Request",
 		filters={
@@ -52,7 +54,6 @@ def download_pdf(doctype, name, format=None, doc=None, no_letterhead=0, language
 	)
 
 	if signed_request and signed_request.signed_file:
-		# Serve the signed PDF instead of generating a new one
 		file_doc = frappe.get_doc("File", signed_request.signed_file)
 		file_content = file_doc.get_content()
 
@@ -61,7 +62,6 @@ def download_pdf(doctype, name, format=None, doc=None, no_letterhead=0, language
 		frappe.local.response.type = "download"
 		return
 
-	# No signed PDF exists
 	if blocking_rule.is_mandatory:
 		frappe.throw(
 			f"This {doctype} requires a digital signature before printing. "
@@ -69,8 +69,7 @@ def download_pdf(doctype, name, format=None, doc=None, no_letterhead=0, language
 			title="Signature Required",
 		)
 
-	# Not mandatory — let the original print through
 	return _original_download_pdf(
 		doctype, name, format=format, doc=doc,
-		no_letterhead=no_letterhead, language=language, letterhead=letterhead,
+		no_letterhead=no_letterhead, **kwargs,
 	)

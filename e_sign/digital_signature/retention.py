@@ -33,5 +33,7 @@ def purge_old_requests():
 		frappe.delete_doc("DSC Signing Request", req.name, force=True)
 
 	if old_requests:
+		# nosemgrep: frappe-manual-commit -- scheduled retention job: explicit
+		# commit so the purge is durable even if a downstream log step raises.
 		frappe.db.commit()
 		frappe.logger().info(f"DSC Retention: purged {len(old_requests)} old signing requests")

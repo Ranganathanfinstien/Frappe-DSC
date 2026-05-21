@@ -28,23 +28,21 @@ def execute(filters=None):
 		conditions.append("source_doctype = %(source_doctype)s")
 		params["source_doctype"] = filters["source_doctype"]
 
-	where = "WHERE " + " AND ".join(conditions)
+	where_clause = "WHERE " + " AND ".join(conditions)
 
-	rows = frappe.db.sql(
-		f"""
-		SELECT
-			COALESCE(NULLIF(TRIM(failure_reason), ''), '(no reason recorded)') AS failure_reason,
-			source_doctype,
-			COUNT(*) AS count,
-			MAX(modified) AS latest
-		FROM `tabDSC Signing Request`
-		{where}
-		GROUP BY failure_reason, source_doctype
-		ORDER BY count DESC, latest DESC
-		""",
-		params,
-		as_dict=True,
+	query = (
+		"SELECT "
+		"COALESCE(NULLIF(TRIM(failure_reason), ''), '(no reason recorded)') AS failure_reason, "
+		"source_doctype, "
+		"COUNT(*) AS count, "
+		"MAX(modified) AS latest "
+		"FROM `tabDSC Signing Request` "
+		+ where_clause
+		+ " GROUP BY failure_reason, source_doctype "
+		"ORDER BY count DESC, latest DESC"
 	)
+
+	rows = frappe.db.sql(query, params, as_dict=True)
 
 	chart = {
 		"data": {

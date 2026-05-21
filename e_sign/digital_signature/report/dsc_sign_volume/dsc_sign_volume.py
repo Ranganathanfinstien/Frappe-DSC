@@ -37,27 +37,25 @@ def execute(filters=None):
 		conditions.append("source_doctype = %(source_doctype)s")
 		params["source_doctype"] = filters["source_doctype"]
 
-	where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+	where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-	rows = frappe.db.sql(
-		f"""
-		SELECT
-			DATE(creation) AS day,
-			source_doctype,
-			profile,
-			COUNT(*) AS total,
-			SUM(CASE WHEN status = 'Signed' THEN 1 ELSE 0 END) AS signed,
-			SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) AS pending,
-			SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END) AS failed,
-			SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled
-		FROM `tabDSC Signing Request`
-		{where}
-		GROUP BY day, source_doctype, profile
-		ORDER BY day DESC
-		""",
-		params,
-		as_dict=True,
+	query = (
+		"SELECT "
+		"DATE(creation) AS day, "
+		"source_doctype, "
+		"profile, "
+		"COUNT(*) AS total, "
+		"SUM(CASE WHEN status = 'Signed' THEN 1 ELSE 0 END) AS signed, "
+		"SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) AS pending, "
+		"SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END) AS failed, "
+		"SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled "
+		"FROM `tabDSC Signing Request` "
+		+ where_clause
+		+ " GROUP BY day, source_doctype, profile "
+		"ORDER BY day DESC"
 	)
+
+	rows = frappe.db.sql(query, params, as_dict=True)
 
 	chart = {
 		"data": {

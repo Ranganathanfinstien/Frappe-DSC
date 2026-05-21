@@ -36,5 +36,8 @@ def expire_stale_pending_requests():
 		)
 
 	if stale_requests:
+		# nosemgrep: frappe-manual-commit -- scheduled job: explicit commit so
+		# the timeout-expiry write is durable even if a later log/notification
+		# step raises.
 		frappe.db.commit()
 		frappe.logger().info(f"DSC Cleanup: expired {len(stale_requests)} stale signing requests")

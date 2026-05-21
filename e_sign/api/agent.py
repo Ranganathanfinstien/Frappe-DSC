@@ -36,11 +36,25 @@ def generate_pairing_code():
 	"""
 	import json
 
+	# Use the URL the browser actually reached us on (Host / X-Forwarded-Host)
+	# instead of frappe.utils.get_url(), which resolves to the server-internal
+	# host_name. The agent must call back through the public-facing URL.
+	def _public_site_url():
+		req = getattr(frappe.local, "request", None)
+		if req is not None:
+			xfh = req.headers.get("X-Forwarded-Host") or req.headers.get("X-Original-Host")
+			host = xfh or req.host
+			proto = req.headers.get("X-Forwarded-Proto") or ("https" if req.is_secure else "http")
+			if host:
+				return f"{proto}://{host}"
+		return frappe.utils.get_url()
+
+	site_url = _public_site_url()
 	code = secrets.token_urlsafe(16)
 	payload = {
 		"user": frappe.session.user,
 		"created_at": str(now_datetime()),
-		"site_url": frappe.utils.get_url(),
+		"site_url": site_url,
 	}
 
 	frappe.cache().set_value(
@@ -52,7 +66,7 @@ def generate_pairing_code():
 	return {
 		"pairing_code": code,
 		"expires_in_seconds": _PAIRING_TTL_SECONDS,
-		"site_url": frappe.utils.get_url(),
+		"site_url": site_url,
 	}
 
 
@@ -99,6 +113,9 @@ def validate_pairing_code(pairing_code, agent_fingerprint, os_platform=None, age
 	})
 	agent_reg.insert(ignore_permissions=True)
 
+	# nosemgrep: frappe-manual-commit -- persist agent registration before the
+	# one-time token is returned to the client; if the response fails later we
+	# must not hand out a token that has no durable registration.
 	frappe.db.commit()
 
 	# Provide the server-side HMAC secret to the agent so it can verify HMAC
