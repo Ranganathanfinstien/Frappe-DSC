@@ -382,6 +382,9 @@ def finalize(session_id, signature_bytes_b64, cert_der_b64, cert_chain_der_b64=N
 			"expected": expected_fp,
 			"presented": presented_fingerprint,
 		})
+		# nosemgrep: frappe-manual-commit -- persist Failed status + audit event
+		# before frappe.throw rolls back the request transaction; the evidence
+		# trail must survive the abort.
 		frappe.db.commit()
 		frappe.throw(
 			"The certificate on the token does not match this profile. "
@@ -475,6 +478,9 @@ def finalize(session_id, signature_bytes_b64, cert_der_b64, cert_chain_der_b64=N
 		except Exception:
 			frappe.log_error(title="DSC: signed notification email failed")
 
+		# nosemgrep: frappe-manual-commit -- commit the signed evidence (PDF +
+		# audit events) before invoking external dev hooks; a hook failure must
+		# not roll back a successful, legally-binding signature.
 		frappe.db.commit()
 
 		# Developer hook: dsc_after_sign — fires after evidence is committed.
@@ -513,6 +519,9 @@ def finalize(session_id, signature_bytes_b64, cert_der_b64, cert_chain_der_b64=N
 			notify_admins_of_failure(signing_request_name, str(e))
 		except Exception:
 			frappe.log_error(title="DSC: admin failure-notification email failed")
+		# nosemgrep: frappe-manual-commit -- persist Failed status + audit event
+		# before `raise` triggers the request rollback; the evidence trail must
+		# survive the abort.
 		frappe.db.commit()
 		raise
 

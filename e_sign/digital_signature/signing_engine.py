@@ -431,6 +431,8 @@ def _load_trust_store():
 		anchors = []
 
 		if os.path.exists(_BUILTIN_TRUST_BUNDLE):
+			# nosemgrep: frappe-security-file-traversal -- hardcoded path inside the app
+			# directory (see _BUILTIN_TRUST_BUNDLE above); no user-controlled input.
 			with open(_BUILTIN_TRUST_BUNDLE, "rb") as fh:
 				anchors.extend(_parse_pem_certs(fh.read()))
 

@@ -29,5 +29,8 @@ def get_or_create_hmac_secret():
 	new_secret = secrets.token_urlsafe(48)
 	doc.hmac_secret = new_secret
 	doc.save(ignore_permissions=True)
+	# nosemgrep: frappe-manual-commit -- persist the freshly generated HMAC
+	# secret before it is returned to the caller; the agent will use it to sign
+	# subsequent requests, so the stored value must be durable first.
 	frappe.db.commit()
 	return new_secret

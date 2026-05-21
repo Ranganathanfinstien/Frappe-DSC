@@ -25,20 +25,60 @@ doctype_js = {
 	# a "redeclaration of const" SyntaxError.
 }
 
-# Document Events — universal listener for the Rules Engine
+# Document Events — Rules Engine listener
 # ------------------
-# The "*" key means this fires on every DocType.
-# The rule_engine filters by checking if a DSC Rule exists for the DocType.
-doc_events = {
-	"*": {
-		"on_submit": "e_sign.digital_signature.rule_engine.evaluate_on_submit",
-		"on_update_after_submit": "e_sign.digital_signature.rule_engine.evaluate_on_update",
-		"on_change": "e_sign.digital_signature.rule_engine.evaluate_on_change",
-	},
-	"File": {
-		# Refuse deletion of DSC-signed PDFs by non-administrators (PRD §12.6)
-		"before_delete": "e_sign.digital_signature.file_protection.before_delete",
-	},
+# Instead of a wildcard "*" (which fires the rule engine on every save across
+# every DocType on the bench — a real perf hit on shared infra), we register
+# hooks only for the DocTypes that have a DSC Rule configured, plus a built-in
+# list of common business DocTypes so the app works out of the box.
+#
+# When an admin adds a DSC Rule for a new DocType, a bench restart picks it
+# up. Document this in the app README.
+_DEFAULT_TRACKED_DOCTYPES = [
+	"Sales Invoice",
+	"Purchase Invoice",
+	"Sales Order",
+	"Purchase Order",
+	"Quotation",
+	"Delivery Note",
+	"Stock Entry",
+	"Material Request",
+	"Journal Entry",
+	"Payment Entry",
+]
+
+
+def _get_tracked_doctypes():
+	"""Union of DEFAULT_TRACKED_DOCTYPES and any target_doctype configured in
+	DSC Rule. Safe to call during install/migrate (returns the default list
+	when the DB or table isn't ready)."""
+	try:
+		import frappe
+
+		if not getattr(frappe, "db", None):
+			return list(_DEFAULT_TRACKED_DOCTYPES)
+		rows = frappe.db.sql(
+			"SELECT DISTINCT target_doctype FROM `tabDSC Rule` "
+			"WHERE is_enabled = 1 AND target_doctype IS NOT NULL AND target_doctype != ''"
+		)
+		configured = [r[0] for r in rows if r[0]]
+		return sorted(set(_DEFAULT_TRACKED_DOCTYPES) | set(configured))
+	except Exception:
+		return list(_DEFAULT_TRACKED_DOCTYPES)
+
+
+_RULE_ENGINE_EVENTS = {
+	"on_submit": "e_sign.digital_signature.rule_engine.evaluate_on_submit",
+	"on_update_after_submit": "e_sign.digital_signature.rule_engine.evaluate_on_update",
+	"on_change": "e_sign.digital_signature.rule_engine.evaluate_on_change",
+}
+
+doc_events = {dt: dict(_RULE_ENGINE_EVENTS) for dt in _get_tracked_doctypes()}
+
+# File deletion guard (PRD §12.6) — refuse deletion of DSC-signed PDFs by
+# non-administrators.
+doc_events["File"] = {
+	"before_delete": "e_sign.digital_signature.file_protection.before_delete",
 }
 
 # Override whitelisted methods

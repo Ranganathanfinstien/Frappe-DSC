@@ -31,24 +31,22 @@ def execute(filters=None):
 		conditions.append("profile = %(profile)s")
 		params["profile"] = filters["profile"]
 
-	where = "WHERE " + " AND ".join(conditions)
+	where_clause = "WHERE " + " AND ".join(conditions)
 
-	rows = frappe.db.sql(
-		f"""
-		SELECT
-			profile,
-			source_doctype,
-			COUNT(*) AS signed_count,
-			AVG(sign_duration_seconds) AS avg_seconds,
-			MIN(sign_duration_seconds) AS min_seconds,
-			MAX(sign_duration_seconds) AS max_seconds
-		FROM `tabDSC Signing Request`
-		{where}
-		GROUP BY profile, source_doctype
-		ORDER BY avg_seconds DESC
-		""",
-		params,
-		as_dict=True,
+	query = (
+		"SELECT "
+		"profile, "
+		"source_doctype, "
+		"COUNT(*) AS signed_count, "
+		"AVG(sign_duration_seconds) AS avg_seconds, "
+		"MIN(sign_duration_seconds) AS min_seconds, "
+		"MAX(sign_duration_seconds) AS max_seconds "
+		"FROM `tabDSC Signing Request` "
+		+ where_clause
+		+ " GROUP BY profile, source_doctype "
+		"ORDER BY avg_seconds DESC"
 	)
+
+	rows = frappe.db.sql(query, params, as_dict=True)
 
 	return columns, rows
