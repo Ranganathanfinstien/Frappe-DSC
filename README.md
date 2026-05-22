@@ -17,7 +17,7 @@ around it.
 
 - **Hardware DSC token signing** — sign with a PKCS#11 USB crypto token; the private
   key never leaves the device.
-- **PAdES-compliant signatures** — PDF signatures built with [pyHanko], verifiable in
+- **PAdES-compliant signatures** — PDF signatures built with pyHanko, verifiable in
   Adobe Acrobat and other readers.
 - **Rules Engine** — define **DSC Rules** so signing requests are created
   automatically when a document is submitted or changed.
@@ -135,11 +135,11 @@ See [`docs/trust-store.md`](docs/trust-store.md).
 ## Documentation
 
 Full documentation lives in [`docs/`](docs/) and is published as a site via
-[MkDocs](https://www.mkdocs.org/):
+MkDocs:
 
 ```bash
 pip install mkdocs-material
-mkdocs serve     # preview at http://127.0.0.1:8000
+mkdocs serve     # preview locally in your browser
 ```
 
 ## Contributing
@@ -156,8 +156,5 @@ Tools: `ruff`, `eslint`, `prettier`, `pyupgrade`.
 ## License
 
 See [`license.txt`](license.txt).
-
-[pyHanko]: https://github.com/MatthiasValvekens/pyHanko
-[bench]: https://github.com/frappe/bench
 </content>
 </invoke>
