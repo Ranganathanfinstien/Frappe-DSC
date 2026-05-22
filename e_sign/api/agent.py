@@ -113,10 +113,10 @@ def validate_pairing_code(pairing_code, agent_fingerprint, os_platform=None, age
 	})
 	agent_reg.insert(ignore_permissions=True)
 
-	# nosemgrep: frappe-manual-commit -- persist agent registration before the
+	# persist agent registration before the
 	# one-time token is returned to the client; if the response fails later we
 	# must not hand out a token that has no durable registration.
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit
 
 	# Provide the server-side HMAC secret to the agent so it can verify HMAC
 	# tags on subsequent /v1/sign requests (PRD §13.4 / §17.1). The plaintext
