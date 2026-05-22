@@ -86,7 +86,7 @@ The `after_install` hook adds an `is_dsc_signed` custom field to the **File** do
 and ships the `DSC Administrator`, `DSC Signer` and `DSC Auditor` roles as fixtures.
 
 Each signer additionally installs the **bridge agent** on their workstation — see
-[`docs/bridge-agent.md`](docs/bridge-agent.md).
+`docs/bridge-agent.md`.
 
 ## Quick start
 
@@ -100,7 +100,7 @@ Each signer additionally installs the **bridge agent** on their workstation — 
    - create a **DSC Document Sign** record, upload a PDF, place the signature, and
      click **Sign with DSC**.
 
-Full walkthrough: [`docs/getting-started.md`](docs/getting-started.md).
+Full walkthrough: `docs/getting-started.md`.
 
 ## Doctypes
 
@@ -130,11 +130,11 @@ Signature verification trusts two merged sources:
 2. **Custom** — an optional PEM bundle an admin uploads in **DSC Settings → Custom CA
    Trust Store Bundle**, for trusting additional CAs (e.g. a private CA).
 
-See [`docs/trust-store.md`](docs/trust-store.md).
+See `docs/trust-store.md`.
 
 ## Documentation
 
-Full documentation lives in [`docs/`](docs/) and is published as a site via
+Full documentation lives in the `docs/` directory and is published as a site via
 MkDocs:
 
 ```bash
@@ -155,6 +155,6 @@ Tools: `ruff`, `eslint`, `prettier`, `pyupgrade`.
 
 ## License
 
-See [`license.txt`](license.txt).
+See the `license.txt` file.
 </content>
 </invoke>
