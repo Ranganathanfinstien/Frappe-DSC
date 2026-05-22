@@ -40,9 +40,9 @@ def run():
 	_rule(company=company)
 	report.append(f"[ok] DSC Rule: {RULE_NAME}")
 
-	# nosemgrep: frappe-manual-commit -- demo setup script invoked via
+	# demo setup script invoked via
 	# `bench execute`; explicit commit so changes are visible immediately.
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit
 
 	print("\n".join(report))
 	print("\nNext: submit a Sales Invoice with grand_total >= 50000 and check")
@@ -61,9 +61,9 @@ def teardown():
 			print(f"[deleted] {dt}: {name}")
 		else:
 			print(f"[skip] {dt}: {name} not found")
-	# nosemgrep: frappe-manual-commit -- demo teardown script invoked via
+	# demo teardown script invoked via
 	# `bench execute`; explicit commit so deletions are durable immediately.
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit
 
 
 def test_flow():
@@ -88,9 +88,9 @@ def test_flow():
 	# Case B — below threshold, should NOT produce one
 	below = _make_invoice(customer=customer, item=item, company=company, qty=1, rate=20000)
 
-	# nosemgrep: frappe-manual-commit -- demo smoke-test script: commit so the
+	# demo smoke-test script: commit so the
 	# rule-engine results are visible to the subsequent existence checks.
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit
 
 	above_req = frappe.db.exists(
 		"DSC Signing Request",
@@ -144,9 +144,9 @@ def test_pairing():
 	print(f"agent_registration:   {result['agent_registration']}")
 	print(f"site_token (prefix):  {result['site_token'][:16]}…")
 
-	# nosemgrep: frappe-manual-commit -- demo pairing smoke-test: commit so the
+	# demo pairing smoke-test: commit so the
 	# registration record is durable before we fetch and print it back.
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit
 
 	reg = frappe.get_doc("DSC Agent Registration", result["agent_registration"])
 	print()
