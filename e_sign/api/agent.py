@@ -196,6 +196,14 @@ def register_certificate(profile_name, cert_der_b64):
 
 	profile = frappe.get_doc("DSC Profile", profile_name)
 
+	# Enforce write permission on the target profile. Registering a certificate
+	# rewrites the signer's identity (fingerprint, CN, issuer, public cert), so
+	# it must be gated to the profile owner / DSC Administrator / System Manager
+	# per the DSC Profile doctype permissions. Previously the save below used
+	# ignore_permissions=True, which let any logged-in user overwrite anyone
+	# else's certificate (privilege escalation / signer impersonation).
+	profile.check_permission("write")
+
 	if profile.certificate_fingerprint:
 		profile.append("previous_certificates", {
 			"certificate_fingerprint": profile.certificate_fingerprint,
@@ -213,7 +221,7 @@ def register_certificate(profile_name, cert_der_b64):
 	profile.certificate_pem_public = cert_pem
 	profile.registered_on = now_datetime()
 
-	profile.save(ignore_permissions=True)
+	profile.save()
 
 	return {
 		"status": "registered",
