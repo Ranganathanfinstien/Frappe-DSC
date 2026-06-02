@@ -115,6 +115,16 @@ func (h *Handlers) HandlePair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Require explicit, human approval before we contact the site or store any
+	// credential. /v1/pair is reachable from any web page on the machine (it
+	// must be, to bootstrap the first pairing), so this dialog is what stops a
+	// malicious page from silently pairing the agent to an attacker-controlled
+	// site in the background. The user sees the exact site_url and must consent.
+	if !confirmPairing(req.SiteURL) {
+		writeError(w, ErrUnauthorized, http.StatusForbidden)
+		return
+	}
+
 	// Validate pairing code against the Frappe site
 	pairing, err := validatePairingCode(req.SiteURL, req.PairingCode, h.agentFP)
 	if err != nil {

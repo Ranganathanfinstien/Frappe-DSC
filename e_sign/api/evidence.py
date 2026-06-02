@@ -30,6 +30,13 @@ def export_evidence_pack(signing_request):
 	"""
 	req = frappe.get_doc("DSC Signing Request", signing_request)
 
+	# Enforce read permission on the signing request before assembling the pack.
+	# The evidence pack bundles the signed PDF, full audit trail, signer cert and
+	# OCSP response — all sensitive. frappe.get_doc() does NOT check permissions,
+	# so without this any authenticated user could export another user's /
+	# department's evidence just by knowing the request name.
+	req.check_permission("read")
+
 	if req.status != "Signed":
 		frappe.throw("Evidence pack can only be exported for signed requests.")
 

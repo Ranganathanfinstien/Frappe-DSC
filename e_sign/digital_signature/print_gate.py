@@ -42,6 +42,17 @@ def download_pdf(doctype, name, format=None, doc=None, no_letterhead=0, **kwargs
 			no_letterhead=no_letterhead, **kwargs,
 		)
 
+	# A DSC gate applies — from here we diverge from Frappe's native handler,
+	# which performs its own print/read permission check. Because we may serve
+	# the signed File's bytes directly (bypassing that handler), enforce read
+	# permission on the *source* document ourselves first. Without this, the
+	# allow_guest whitelist would let any unauthenticated caller download a
+	# signed PDF just by knowing the doctype + name (IDOR).
+	if not frappe.has_permission(doctype, "read", doc=name):
+		raise frappe.PermissionError(
+			f"You do not have permission to access {doctype} {name}."
+		)
+
 	signed_request = frappe.db.get_value(
 		"DSC Signing Request",
 		filters={
