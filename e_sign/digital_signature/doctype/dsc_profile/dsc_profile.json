@@ -91,7 +91,8 @@
    "fieldname": "certificate_fingerprint",
    "fieldtype": "Data",
    "label": "Certificate Fingerprint (SHA-256)",
-   "description": "SHA-256 hash of the certificate DER encoding. Populated on certificate registration."
+   "read_only": 1,
+   "description": "SHA-256 hash of the certificate DER encoding. Populated automatically by registering a token (Register Certificate); never enter by hand."
   },
   {
    "fieldname": "certificate_common_name",
