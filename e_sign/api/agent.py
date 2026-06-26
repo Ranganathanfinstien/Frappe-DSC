@@ -5,6 +5,7 @@ Agent API — endpoints for dsc-bridge desktop agent pairing and certificate reg
 import hashlib
 import hmac
 import secrets
+from datetime import timezone as _timezone
 
 import frappe
 from frappe.utils import now_datetime
@@ -180,11 +181,31 @@ def register_certificate(profile_name, cert_der_b64):
 	cert = asn1_x509.Certificate.load(cert_der)
 	subject = cert.subject
 
-	common_name = subject.human_friendly
-	issuer = cert.issuer.human_friendly
+	# Extract just the Common Name, NOT subject.human_friendly — the latter
+	# concatenates the entire DN (serial, state, postal code, telephone, title,
+	# organization, country), which routinely exceeds the 140-char limit of the
+	# Data field and raises "Value too big". Fall back to the full DN (truncated)
+	# only if the cert has no CN. Same applies to the issuer.
+	def _common_name(name):
+		cn = (name.native or {}).get("common_name")
+		if isinstance(cn, (list, tuple)):
+			cn = cn[0] if cn else None
+		return (cn or name.human_friendly)[:140]
+
+	common_name = _common_name(subject)
+	issuer = _common_name(cert.issuer)
 	serial = format(cert.serial_number, "X")
-	not_before = cert["tbs_certificate"]["validity"]["not_before"].native
-	not_after = cert["tbs_certificate"]["validity"]["not_after"].native
+
+	# asn1crypto returns validity dates as timezone-aware UTC datetimes
+	# (e.g. 2026-01-14 14:26:33+00:00). MySQL DATETIME columns reject the
+	# "+00:00" offset ("Incorrect datetime value"), so normalise to naive UTC.
+	def _naive_utc(dt):
+		if dt is not None and dt.tzinfo is not None:
+			dt = dt.astimezone(_timezone.utc).replace(tzinfo=None)
+		return dt
+
+	not_before = _naive_utc(cert["tbs_certificate"]["validity"]["not_before"].native)
+	not_after = _naive_utc(cert["tbs_certificate"]["validity"]["not_after"].native)
 
 	fingerprint = hashlib.sha256(cert_der).hexdigest()
 

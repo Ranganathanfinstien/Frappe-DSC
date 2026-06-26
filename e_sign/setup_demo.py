@@ -12,7 +12,6 @@ Cleanup:
 """
 
 import frappe
-from frappe.utils import now_datetime
 
 PROFILE_NAME = "RAJESH-CFO-2026"
 TEMPLATE_NAME = "Sales Invoice Bottom Right"
@@ -287,16 +286,16 @@ def _profile(user: str, company: str | None):
 	doc.label = "Chief Financial Officer"
 	doc.company = company
 	doc.is_active = 1
-	doc.certificate_fingerprint = (
-		"a1b2c3d4e5f60718293a4b5c6d7e8f9012345678901234567890abcdef123456"
-	)
-	doc.certificate_common_name = "RAJESH KUMAR"
-	doc.certificate_issuer = "eMudhra Sub CA for Class 3 Individual 2022"
-	doc.certificate_serial = "7A3B2C1D4E5F6A7B"
-	doc.certificate_not_before = "2024-03-12 00:00:00"
-	doc.certificate_not_after = "2027-03-11 23:59:59"
+	# NOTE: We deliberately do NOT seed a certificate fingerprint here.
+	# A fingerprint is the SHA-256 of a real certificate on a physical token and
+	# must only be set by registering an actual token (see
+	# e_sign.api.agent.register_certificate / the "Register Certificate" button
+	# on the DSC Profile form). Seeding a fake value made every signing attempt
+	# fail with "Certificate on token does not match…". Leaving it blank keeps the
+	# demo profile usable (signing-time fingerprint binding is skipped when no
+	# fingerprint is registered — see api/signing.py) without pretending a real
+	# certificate has been enrolled.
 	doc.designation_for_stamp = "Chief Financial Officer, Acme Corp"
-	doc.registered_on = now_datetime()
 
 	doc.set("allowed_users", [])
 	doc.append("allowed_users", {"user": user})
