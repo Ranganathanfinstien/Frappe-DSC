@@ -255,6 +255,26 @@ def register_certificate(profile_name, cert_der_b64):
 
 
 @frappe.whitelist()
+def revoke(agent_registration):
+	"""Disable a paired agent so it can no longer sign.
+
+	Called by the "Revoke Agent" button on DSC Agent Registration.
+	Sets is_active=0; the stored site token stays hashed in the record
+	but verify_site_token() only honours active registrations, so the
+	agent is locked out immediately. Idempotent.
+	"""
+	if not agent_registration:
+		frappe.throw("Agent registration is required.")
+
+	doc = frappe.get_doc("DSC Agent Registration", agent_registration)
+	doc.check_permission("write")
+	if doc.get("is_active"):
+		doc.db_set("is_active", 0, update_modified=True)
+		frappe.db.commit()
+	return {"status": "revoked", "agent_registration": doc.name}
+
+
+@frappe.whitelist()
 def list_agent_certificates(agent_port=None):
 	"""Proxy endpoint — browser calls this, server could forward to agent.
 
