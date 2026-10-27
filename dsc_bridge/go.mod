@@ -1,4 +1,4 @@
-module github.com/Ragav05/dsc-bridge
+module github.com/Ranganathanfinstien/dsc-bridge
 
 go 1.25.0
 
