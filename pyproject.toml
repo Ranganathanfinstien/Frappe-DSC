@@ -1,7 +1,7 @@
 [project]
 name = "e_sign"
 authors = [
-    { name = "Ragav", email = "prasathragav55@gmail.com"}
+    { name = "Ranganathan C", email = "ranganath.c@finstein.ai"}
 ]
 description = "E-sign"
 requires-python = ">=3.10"

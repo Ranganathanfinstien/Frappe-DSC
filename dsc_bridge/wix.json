@@ -56,7 +56,7 @@
     "description": "Desktop agent for DSC digital signing via USB tokens",
     "title": "DSC Bridge",
     "authors": "E-Sign Team",
-    "project-url": "https://github.com/Ragav05/dsc-bridge",
+    "project-url": "https://github.com/Ranganathanfinstien/Frappe-DSC",
     "tags": "dsc digital-signature pkcs11 usb-token",
     "icon-url": ""
   }

@@ -1,4 +1,4 @@
-# Copyright (c) 2026, Ragav and Contributors
+# Copyright (c) 2026, Ranganathan C and Contributors
 # See license.txt
 
 # import frappe
